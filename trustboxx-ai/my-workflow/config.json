@@ -1,0 +1,23 @@
+{
+  "chainSelectorName": "avalanche-testnet-fuji",
+  "apiUrl":  "https://trustbox-backend-kxkr.onrender.com",
+  "gasLimit": 500000, 
+  "contracts": {
+    "trustRegistry": "0x8A24ea199EAAbc8AAcb7cb92660FD20a2BA2552A",
+    "auditRegistry": "0x62e2Ba19a38AcA58B829aEC3ED8Db9bfd89D5Fd3",
+    "intentVault": "0xB9aE50f6989574504e6CA465283BaD9570944B67",
+    "agentMarketplace": "0x12d7ef9627d0F4c6C6e0EB85A4D6388cee5d91c2"
+  },
+  "hedera": {
+    "topicId": "0.0.000001",
+    "network": "testnet"
+  },
+  "schedules": {
+    "creditScoreRefresh": "0 */6 * * *",
+    "agentTrustRefresh": "0 */2 * * *"
+  },
+  "trustScore": {
+    "minScore": 60,
+    "passingScore": 75
+  }
+}

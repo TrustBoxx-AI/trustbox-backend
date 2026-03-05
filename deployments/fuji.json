@@ -1,0 +1,19 @@
+{
+  "network": "fuji",
+  "chainId": "43113",
+  "deployedAt": "2026-03-03T07:54:09.877Z",
+  "deployer": "0x494F52322eA822E35Cf9D05fF801e00Fc26AEa5F",
+  "contracts": {
+    "trustRegistry": "0x8A24ea199EAAbc8AAcb7cb92660FD20a2BA2552A",
+    "auditRegistry": "0x62e2Ba19a38AcA58B829aEC3ED8Db9bfd89D5Fd3",
+    "intentVault": "0xB9aE50f6989574504e6CA465283BaD9570944B67",
+    "agentMarketplace": "0x12d7ef9627d0F4c6C6e0EB85A4D6388cee5d91c2"
+  },
+  "FunctionsConsumer": {
+    "address": "0xB275C85ac5AD6F063E038245Bae137d42Dd5Ba19",
+    "deployedAt": "2026-03-04T03:54:47.289Z",
+    "deployer": "0x494F52322eA822E35Cf9D05fF801e00Fc26AEa5F",
+    "network": "avalanche-fuji",
+    "subscriptionId": "15781"
+  }
+}
