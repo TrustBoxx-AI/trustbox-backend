@@ -6,7 +6,7 @@ import { Router, Request, Response } from "express"
 import { ethers }                    from "ethers"
 import { requireWalletSig }          from "../middleware/auth"
 import { walletRateLimit }           from "../middleware/rateLimit"
-import { validateBlindAudit }        from "../middleware/validate"
+import { validate, BlindAuditSchema } from "../middleware/validate"
 import { uploadJSON }                from "../services/ipfs"
 import { dispatchTEEJob, pollJobResult, verifyAttestation, encryptForAgent, getAgentPublicKey } from "../services/phala"
 import { getAgentMarketplace, waitForTx, getGasConfig } from "../services/ethers"
@@ -16,7 +16,7 @@ export const blindAuditRouter = Router()
 blindAuditRouter.post("/",
   walletRateLimit,
   requireWalletSig,
-  validateBlindAudit,
+  validate(BlindAuditSchema),
   async (req: Request, res: Response) => {
     try {
       const {
