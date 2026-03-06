@@ -59,7 +59,7 @@ export const PRICE_STALENESS_SECONDS = 3600; // 1 hour
 // ── ABI loaders (filled by scripts/utils/exportAbis.ts) ──────
 export function loadAbi(contractName: string): any[] {
   try {
-    return require(`../contracts/abis/${contractName}.json`);
+    return require(`../abi/${contractName}.json`);
   } catch {
     // Return minimal placeholder if not yet deployed
     console.warn(`⚠  ABI not found for ${contractName} — deploy contracts first (Session 5)`);
