@@ -111,6 +111,19 @@ const ABIS: Record<string, any[]> = {
     {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"intentId","type":"uint256"},{"indexed":true,"internalType":"address","name":"submitter","type":"address"},{"indexed":false,"internalType":"bytes32","name":"specHash","type":"bytes32"},{"indexed":false,"internalType":"string","name":"category","type":"string"}],"name":"IntentSubmitted","type":"event"},
     {"anonymous":false,"inputs":[{"indexed":true,"internalType":"uint256","name":"intentId","type":"uint256"},{"indexed":false,"internalType":"string","name":"txHash","type":"string"}],"name":"IntentExecuted","type":"event"},
   ],
+
+  FunctionsConsumer: [
+    {"inputs":[{"internalType":"address","name":"router","type":"address"},{"internalType":"bytes32","name":"donId","type":"bytes32"}],"stateMutability":"nonpayable","type":"constructor"},
+    {"inputs":[{"internalType":"string","name":"source","type":"string"},{"internalType":"string[]","name":"args","type":"string[]"},{"internalType":"bytes","name":"encryptedSecretsRef","type":"bytes"}],"name":"sendParseRequest","outputs":[{"internalType":"bytes32","name":"requestId","type":"bytes32"}],"stateMutability":"nonpayable","type":"function"},
+    {"inputs":[{"internalType":"string","name":"source","type":"string"},{"internalType":"string[]","name":"args","type":"string[]"},{"internalType":"bytes","name":"encryptedSecretsRef","type":"bytes"},{"internalType":"uint64","name":"subscriptionId","type":"uint64"},{"internalType":"uint32","name":"gasLimit","type":"uint32"}],"name":"sendRequest","outputs":[{"internalType":"bytes32","name":"requestId","type":"bytes32"}],"stateMutability":"nonpayable","type":"function"},
+    {"inputs":[],"name":"lastResponse","outputs":[{"internalType":"bytes","name":"","type":"bytes"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"lastError","outputs":[{"internalType":"bytes","name":"","type":"bytes"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"lastRequestId","outputs":[{"internalType":"bytes32","name":"","type":"bytes32"}],"stateMutability":"view","type":"function"},
+    {"inputs":[],"name":"owner","outputs":[{"internalType":"address","name":"","type":"address"}],"stateMutability":"view","type":"function"},
+    {"inputs":[{"internalType":"bytes32","name":"requestId","type":"bytes32"},{"internalType":"bytes","name":"response","type":"bytes"},{"internalType":"bytes","name":"err","type":"bytes"}],"name":"fulfillRequest","outputs":[],"stateMutability":"nonpayable","type":"function"},
+    {"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"requestId","type":"bytes32"},{"indexed":false,"internalType":"string","name":"specJson","type":"string"},{"indexed":false,"internalType":"bytes32","name":"specHash","type":"bytes32"},{"indexed":false,"internalType":"string","name":"category","type":"string"}],"name":"IntentParsed","type":"event"},
+    {"anonymous":false,"inputs":[{"indexed":true,"internalType":"bytes32","name":"requestId","type":"bytes32"},{"indexed":false,"internalType":"bytes","name":"response","type":"bytes"},{"indexed":false,"internalType":"bytes","name":"err","type":"bytes"}],"name":"RequestFulfilled","type":"event"},
+  ],
 };
 
 // ── ABI loader ────────────────────────────────────────────────
