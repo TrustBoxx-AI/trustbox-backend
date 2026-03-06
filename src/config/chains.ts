@@ -4,6 +4,7 @@
    ─────────────────────────────────────────────────── */
 
 import { env } from "./env";
+import path from "path";
 
 export const FUJI = {
   chainId:  43113,
@@ -59,7 +60,8 @@ export const PRICE_STALENESS_SECONDS = 3600; // 1 hour
 // ── ABI loaders (filled by scripts/utils/exportAbis.ts) ──────
 export function loadAbi(contractName: string): any[] {
   try {
-    return require(`../contracts/abis/${contractName}.json`);
+      const abiPath = path.join(__dirname, "../contracts/abis", `${contractName}.json`);
+    return require(abiPath);
   } catch {
     // Return minimal placeholder if not yet deployed
     console.warn(`⚠  ABI not found for ${contractName} — deploy contracts first (Session 5)`);
