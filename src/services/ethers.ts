@@ -13,10 +13,9 @@ export const signer   = new ethers.Wallet(env.DEPLOYER_PRIVATE_KEY, provider)
 
 // ── Gas config helper ─────────────────────────────────────────
 export async function getGasConfig() {
-  const feeData = await provider.getFeeData()
   return {
-    maxFeePerGas:         feeData.maxFeePerGas         ?? ethers.parseUnits("30", "gwei"),
-    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? ethers.parseUnits("2",  "gwei"),
+    maxFeePerGas:         BigInt(25_000_000_000),   // 25 gwei
+    maxPriorityFeePerGas: BigInt(1_500_000_000),    //  1.5 gwei
   }
 }
 
