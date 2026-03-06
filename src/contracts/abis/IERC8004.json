@@ -1,8 +1,4 @@
-{
-  "_format": "hh-sol-artifact-1",
-  "contractName": "IERC8004",
-  "sourceName": "contracts/interfaces/IERC8004.sol",
-  "abi": [
+ [
     {
       "anonymous": false,
       "inputs": [
@@ -250,9 +246,4 @@
       "stateMutability": "view",
       "type": "function"
     }
-  ],
-  "bytecode": "0x",
-  "deployedBytecode": "0x",
-  "linkReferences": {},
-  "deployedLinkReferences": {}
-}
+  ]
