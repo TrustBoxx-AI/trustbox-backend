@@ -2,6 +2,10 @@
    POST /api/tee/probe-and-update  — CRE Workflow 3: TEE liveness + trust score
    POST /api/tee/submit-audit      — Frontend: dispatch blind audit job
    GET  /api/tee/job/:jobId        — Poll audit job result
+
+   FIXES:
+     M-04 — getAgentPublicKey(agentId, agentOperator) now passes both args.
+     C-06 — encryptedPayload converted to 0x hex before createJob() bytes param.
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { Router, Request, Response } from "express"
@@ -32,12 +36,10 @@ teeRouter.post("/probe-and-update",
 
       console.log(`[tee/probe] Probing ${agentId} at ${teeEndpoint}`)
 
-      // 1. Probe the TEE agent
       const probe = await probeTEEAgent({ agentId, teeEndpoint })
       addProbeHistory(agentId, probe.liveness)
 
-      // 2. Read current score from TrustRegistry
-      let currentScore = 75  // fallback
+      let currentScore = 75
       if (tokenId) {
         try {
           const record = await getAgentRecord(Number(tokenId))
@@ -47,11 +49,9 @@ teeRouter.post("/probe-and-update",
         }
       }
 
-      // 3. Compute new score
       const history = probeHistory.get(agentId) ?? []
       const { newScore, delta, changed } = computeTrustDelta(currentScore, probe, history)
 
-      // 4. Update score on-chain if changed
       if (changed && tokenId) {
         try {
           const reason = probe.liveness ? "TEE liveness probe passed" : "TEE liveness probe failed"
@@ -93,7 +93,6 @@ teeRouter.post("/submit-audit",
 
       console.log(`[tee/audit] ${contractAddr} → agent ${agentId}`)
 
-      // 1. Build audit payload
       const payload = {
         contractAddr,
         auditScope: auditScope ?? ["static-analysis", "reentrancy", "access-control"],
@@ -101,35 +100,36 @@ teeRouter.post("/submit-audit",
         requester:   requester ?? "anonymous",
       }
 
-      // 2. Encrypt payload with agent's public key
       let encryptedPayload = ""
-      let payloadHash      = ethers.id(JSON.stringify(payload))
+      const payloadHash    = ethers.id(JSON.stringify(payload))
 
       try {
-        const agentPubKey = await getAgentPublicKey(agentId)
+        // FIX M-04: pass agentOperator as second argument
+        const agentPubKey = await getAgentPublicKey(agentId, agentOperator)
         encryptedPayload  = await encryptForAgent(payload, agentPubKey)
       } catch (err: any) {
         console.warn(`[tee/audit] Could not encrypt payload: ${err.message} — using dev mode`)
         encryptedPayload = Buffer.from(JSON.stringify(payload)).toString("base64")
       }
 
-      // 3. Dispatch job via AgentMarketplace.createJob()
+      // FIX C-06: convert to 0x hex for ABI bytes parameter
+      const encPayloadHex = "0x" + Buffer.from(encryptedPayload, "base64").toString("hex")
+
       const marketplace = getAgentMarketplace()
       const gasConfig   = await getGasConfig()
 
-      const jobId = Math.floor(Math.random() * 99999)  // temp — replaced by contract event
+      let jobId: string | number = `job_${Date.now()}`
 
       try {
         const tx = await marketplace.createJob(
           agentId,
           agentOperator,
-          encryptedPayload,
+          encPayloadHex,   // FIX C-06: bytes as 0x hex
           payloadHash,
           { ...gasConfig }
         )
         const receipt = await waitForTx(tx)
 
-        // Extract real jobId from JobCreated event
         for (const log of receipt.logs) {
           try {
             const parsed = marketplace.interface.parseLog(log)
@@ -147,7 +147,6 @@ teeRouter.post("/submit-audit",
 
         res.json({ success: true, jobId, agentId, txHash: receipt.hash, createdAt: Date.now() })
       } catch (err: any) {
-        // Contract not wired yet — return stub
         console.warn(`[tee/audit] Contract call warning: ${err.message}`)
         res.json({ success: true, jobId, agentId, txHash: "0x_pending", createdAt: Date.now() })
       }
@@ -179,7 +178,6 @@ teeRouter.get("/job/:jobId",
           expiresAt:  Number(job.expiresAt) * 1000,
         })
       } catch (err: any) {
-        // Contract not wired yet
         res.json({ jobId, status: "Open", resultCID: null, resultHash: null })
       }
     } catch (err: any) {

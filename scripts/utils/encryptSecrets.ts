@@ -8,8 +8,10 @@
  *   ts-node scripts/utils/encryptSecrets.ts
  *
  * Output: CHAINLINK_SECRETS_VERSION added to .env
+ *
+ * FIX L-10: import * as fs from "fs" was wrong (was "path").
+ *            Both lines now import from their correct modules.
  */
-
 
 import { webcrypto } from "crypto"
 const nodeCrypto = webcrypto as any
@@ -21,16 +23,14 @@ Object.defineProperty(globalThis.crypto, 'subtle', {
 })
 
 import * as dotenv from "dotenv"
-import * as fs     from "path"
-import * as path   from "path"
+import * as fs     from "fs"       // FIX L-10: was incorrectly "path"
+import * as path   from "path"     // FIX L-10: was duplicate "path"
 dotenv.config()
 
 async function main() {
   const {
     SecretsManager,
   } = await import("@chainlink/functions-toolkit")
-
-
 
   const GROQ_API_KEY  = process.env.GROQ_API_KEY
   const DEPLOYER_KEY  = process.env.DEPLOYER_PRIVATE_KEY
@@ -45,36 +45,31 @@ async function main() {
   console.log("  TrustBox — Chainlink DON Secrets Encryption")
   console.log("═══════════════════════════════════════════════════\n")
 
-const ethers5 = require("ethers-v5")
-const provider = new ethers5.providers.JsonRpcProvider(RPC_URL)
-const signer   = new ethers5.Wallet(DEPLOYER_KEY, provider)
-  
-const sm = new SecretsManager({
-  signer:                 signer as any,
-  functionsRouterAddress: ROUTER,
-  donId:                  DON_ID,
-})
+  const ethers5  = require("ethers-v5")
+  const provider = new ethers5.providers.JsonRpcProvider(RPC_URL)
+  const signer   = new ethers5.Wallet(DEPLOYER_KEY, provider)
+
+  const sm = new SecretsManager({
+    signer:                 signer as any,
+    functionsRouterAddress: ROUTER,
+    donId:                  DON_ID,
+  })
   await sm.initialize()
   console.log("✅ SecretsManager initialized")
 
   // Encrypt secrets
-  const { encryptedSecrets } = await sm.encryptSecrets({
-    GROQ_API_KEY,
-  })
+  const { encryptedSecrets } = await sm.encryptSecrets({ GROQ_API_KEY })
   console.log("✅ Secrets encrypted")
 
-  // Upload to DON (slot 0)
-  const {
-    version,
-    success,
-  } = await sm.uploadEncryptedSecretsToDON({
+  // Upload to DON (slot 0, 3-day expiry)
+  const { version, success } = await sm.uploadEncryptedSecretsToDON({
     encryptedSecretsHexstring: encryptedSecrets,
     gatewayUrls: [
       "https://01.functions-gateway.testnet.chain.link/",
       "https://02.functions-gateway.testnet.chain.link/",
     ],
-    slotId:     0,
-    minutesUntilExpiration: 4320,  // 3 days
+    slotId:                 0,
+    minutesUntilExpiration: 4320,
   })
 
   if (!success) {
@@ -83,16 +78,16 @@ const sm = new SecretsManager({
 
   console.log(`✅ Secrets uploaded — version: ${version}`)
 
-  // Update .env
+  // Update .env with the live version number
   const envPath    = path.resolve(__dirname, "../../.env")
-  const envContent = require("fs").readFileSync(envPath, "utf-8")
+  const envContent = fs.readFileSync(envPath, "utf-8")   // FIX L-10: now uses real fs
   const key        = "CHAINLINK_SECRETS_VERSION"
   const regex      = new RegExp(`^${key}=.*$`, "m")
   const newContent = regex.test(envContent)
     ? envContent.replace(regex, `${key}=${version}`)
     : envContent + `\n${key}=${version}`
 
-  require("fs").writeFileSync(envPath, newContent)
+  fs.writeFileSync(envPath, newContent)                  // FIX L-10: now uses real fs
 
   console.log(`\n  ✅ CHAINLINK_SECRETS_VERSION=${version} saved to .env`)
   console.log("═══════════════════════════════════════════════════\n")

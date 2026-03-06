@@ -1,13 +1,17 @@
-/* api/agents.ts — TrustBox (FULL REPLACEMENT)
+/* api/agents.ts — TrustBox
    GET  /api/agents         — paginated agent list (contract + seed fallback)
    GET  /api/agents/active  — CRE Workflow 3: active agents with TEE endpoints
    POST /api/agents/register — register new agent (mint NFT + marketplace)
    GET  /api/agents/:agentId — single agent details
+
+   FIX M-04 derivative: marketplace.getAgent(agentId, operator) requires both
+   args — single-arg calls revert. The /:agentId route now accepts optional
+   operator query param and falls back to deployer address.
    ─────────────────────────────────────────────────────────────────────────── */
 
 import { Router, Request, Response } from "express"
 import { ethers }                    from "ethers"
-import { getTrustRegistry, getAgentMarketplace, waitForTx, getGasConfig } from "../services/ethers"
+import { getTrustRegistry, getAgentMarketplace, waitForTx, getGasConfig, signer } from "../services/ethers"
 import { fetchJSON }                 from "../services/ipfs"
 import { SEED_AGENTS }               from "../config/seedAgents"
 
@@ -15,7 +19,6 @@ export const agentsRouter = Router()
 
 // ── In-memory cache — 60s TTL ─────────────────────────────────
 let _cache: { data: object[]; expiresAt: number } | null = null
-
 function invalidateCache() { _cache = null }
 
 // ── GET /api/agents — full agent list ────────────────────────
@@ -39,7 +42,7 @@ agentsRouter.get("/",
               if (agent.metaURI?.startsWith("ipfs://")) {
                 metadata = await fetchJSON(agent.metaURI.replace("ipfs://", ""))
               }
-            } catch { /* metadata fetch is non-fatal */ }
+            } catch { /* non-fatal */ }
             agents.push({ ...agent, ...metadata })
           } catch { /* skip malformed agents */ }
         }
@@ -48,10 +51,8 @@ agentsRouter.get("/",
           _cache = { data: agents, expiresAt: Date.now() + 60_000 }
           return res.json({ agents, cached: false })
         }
-        // Fall through to seed data if contract returns empty
         throw new Error("no agents in contract")
       } catch {
-        // Fallback to seed data
         _cache = { data: SEED_AGENTS, expiresAt: Date.now() + 60_000 }
         return res.json({ agents: SEED_AGENTS, cached: false, note: "seed data" })
       }
@@ -66,7 +67,6 @@ agentsRouter.get("/",
 agentsRouter.get("/active",
   async (_req: Request, res: Response) => {
     try {
-      // Try contract first
       try {
         const marketplace = getAgentMarketplace()
         const count       = await marketplace.agentCount()
@@ -92,10 +92,9 @@ agentsRouter.get("/active",
         }
         throw new Error("no active agents in contract")
       } catch {
-        // Fallback to seed agents
         const active = SEED_AGENTS
-          .filter(a => a.status === "online")
-          .map((a, i) => ({
+          .filter((a: any) => a.status === "online")
+          .map((a: any, i: number) => ({
             agentId:     a.id,
             tokenId:     i + 1,
             teeEndpoint: `https://phat.phala.network/contracts/get/${a.id}`,
@@ -125,13 +124,8 @@ agentsRouter.post("/register",
       console.log(`[agents/register] Registering ${agentId} for ${operator}`)
 
       const marketplace = getAgentMarketplace()
-      const registry    = getTrustRegistry()
       const gasConfig   = await getGasConfig()
-
-      // 1. Mint ERC-8004 credential in TrustRegistry
-      const modelHash  = ethers.id(`${agentId}:${teeEndpoint}`)
-      const capHash    = ethers.id("tee-agent")
-      const stakeValue = ethers.parseEther(stake ?? "0.1")
+      const stakeValue  = ethers.parseEther(stake ?? "0.1")
 
       const registerTx = await marketplace.registerAgent(
         agentId,
@@ -172,15 +166,18 @@ agentsRouter.post("/register",
 )
 
 // ── GET /api/agents/:agentId — single agent ───────────────────
+// FIX M-04: getAgent(agentId, operator) — operator is required by ABI.
+// Accepts ?operator= query param; falls back to deployer address for seed lookup.
 agentsRouter.get("/:agentId",
   async (req: Request, res: Response) => {
     try {
       const { agentId } = req.params
+      // operator can come as query param from caller, or default to deployer
+      const operator = (req.query.operator as string) || await signer.getAddress()
 
-      // Try contract
       try {
         const marketplace = getAgentMarketplace()
-        const agent       = await marketplace.getAgent(agentId)
+        const agent       = await marketplace.getAgent(agentId, operator)  // FIX M-04
 
         let metadata = {}
         try {
@@ -191,8 +188,7 @@ agentsRouter.get("/:agentId",
 
         return res.json({ ...agent, ...metadata })
       } catch {
-        // Fallback to seed data
-        const seed = SEED_AGENTS.find(a => a.id === agentId)
+        const seed = (SEED_AGENTS as any[]).find(a => a.id === agentId)
         if (seed) return res.json(seed)
         return res.status(404).json({ error: `Agent not found: ${agentId}` })
       }

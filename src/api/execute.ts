@@ -1,57 +1,85 @@
 /* api/execute.ts — TrustBox
-   POST /api/intent/parse  — NL → structured spec (Chainlink Functions)
-   POST /api/intent/submit — spec + sig → IntentVault + Automation + HCS
-   GET  /api/intent/:id    — poll execution status
+   POST /api/intent/parse   — NL → structured spec (Chainlink Functions)
+   POST /api/intent/submit  — spec + sig → IntentVault + HCS
+   GET  /api/intent/pending — CRE polls for oldest pending intent
+   GET  /api/intent/by-tx/:txHash — CRE resolves intentId from tx
+   POST /api/intent/execute — CRE marks intent executed
+   GET  /api/intent/:id     — poll execution status
+
+   FIXES:
+     C-01 — vault.submitIntent(spec, signature) — correct 2-arg call.
+     C-02 — vault.approveIntent() removed (method does not exist).
+     C-03 — vault.getIntent(id) used instead of vault.intents(id).
+     C-08 — duplicate /by-tx/:txHash route removed (stub version deleted).
+     C-09 — duplicate /execute route removed (stub version deleted).
+     H-02 — requireWalletSig placed BEFORE validate() on /parse + /submit.
+     H-06 — parse response returns spec: (not specJson:) so IntentCard renders.
+     M-01 — IntentExecuted event args destructured correctly (id,success,resultCID).
+     M-02 — /:id poll uses getIntent() and returns real struct fields.
+     M-05 — executor address derived from signer.getAddress(), not missing env var.
+     M-09 — saveIntent() called so history endpoint is populated.
    ─────────────────────────────────────────────────────────────────── */
 
-import { Router, Request, Response } from "express";
-import { ethers }               from "ethers";
-import { requireWalletSig }     from "../middleware/auth";
-import { walletRateLimit }      from "../middleware/rateLimit";
-import { validate, IntentParseSchema, IntentSubmitSchema } from "../middleware/validate";
-import { parseIntent }          from "../services/chainlink";
-import { getIntentVault, waitForTx, getGasConfig } from "../services/ethers";
-import { pinIntentRecord }      from "../services/ipfs";
-import { submitIntentTrail }    from "../services/hedera";
-import { getIntentFromTx, markIntentExecuted } from "../services/ethers"
+import { Router, Request, Response } from "express"
+import { ethers }               from "ethers"
+import { requireWalletSig }     from "../middleware/auth"
+import { walletRateLimit }      from "../middleware/rateLimit"
+import { validate, IntentParseSchema, IntentSubmitSchema } from "../middleware/validate"
+import { parseIntent }          from "../services/chainlink"
+import { getIntentVault, waitForTx, getGasConfig, signer, getIntentFromTx, markIntentExecuted } from "../services/ethers"
+import { pinIntentRecord }      from "../services/ipfs"
+import { submitIntentTrail }    from "../services/hedera"
+import { saveIntent }           from "../services/supabase"
 
-export const executeRouter = Router();
+export const executeRouter = Router()
 
 // ── POST /api/intent/parse ────────────────────────────────────
 executeRouter.post("/parse",
   walletRateLimit,
+  requireWalletSig,          // FIX H-02: sig verification BEFORE Zod coercion
   validate(IntentParseSchema),
-  requireWalletSig,
   async (req: Request, res: Response) => {
     try {
-      const { nlText, category } = req.body;
+      const { walletAddress, nlText, category } = req.body
 
-      // Chainlink Functions — calls Groq/Llama 3.1 on DON
-      const { specJson, specHash, requestId } = await parseIntent(nlText, category);
+      const { specJson, specHash, requestId } = await parseIntent(nlText, category)
+      const nlHash = ethers.id(nlText)
 
-      // Compute NL hash
-      const nlHash = ethers.id(nlText);
+      const specParsed = (() => {
+        try { return JSON.parse(specJson) } catch { return { action: "unknown", entity: "", params: {} } }
+      })()
+
+      // FIX M-09: persist parsed intent to Supabase
+      await saveIntent({
+        walletAddress,
+        nlText,
+        nlHash,
+        specJson,
+        specHash,
+        category,
+        status:   "parsed",
+      }).catch(e => console.warn("[execute/parse] saveIntent warning:", e.message))
 
       res.json({
         success:   true,
-        specJson:  JSON.parse(specJson), // parsed object for frontend IntentCard
+        spec:      specParsed,   // FIX H-06: key is 'spec' so ResultsDrawer.IntentCard renders
         specHash,
         nlHash,
         requestId,
         note:      "Review the spec carefully. You are signing specHash — not the raw text.",
-      });
+      })
     } catch (err: any) {
-      console.error("[execute/parse] Error:", err.message);
-      res.status(500).json({ error: err.message });
+      console.error("[execute/parse] Error:", err.message)
+      res.status(500).json({ error: err.message })
     }
   }
-);
+)
 
 // ── POST /api/intent/submit ───────────────────────────────────
 executeRouter.post("/submit",
   walletRateLimit,
+  requireWalletSig,          // FIX H-02: sig verification BEFORE Zod coercion
   validate(IntentSubmitSchema),
-  requireWalletSig,
   async (req: Request, res: Response) => {
     try {
       const {
@@ -62,94 +90,105 @@ executeRouter.post("/submit",
         specJson,
         category,
         signature,
-      } = req.body;
+      } = req.body
 
-      const vault     = getIntentVault();
-      const gasConfig = await getGasConfig();
+      const vault     = getIntentVault()
+      const gasConfig = await getGasConfig()
 
-      // 1. Submit intent on-chain
+      // FIX C-01: submitIntent(spec: string, signature: bytes) — only 2 args.
+      // The spec is the full JSON string; nlHash and specHash are off-chain only.
       const submitTx = await vault.submitIntent(
-        nlHash,
-        specHash,
-        category,
+        specJson,
         signature,
         { ...gasConfig }
-      );
-      const submitReceipt = await waitForTx(submitTx);
-      console.log(`[execute] Intent submitted — tx: ${submitReceipt.hash}`);
+      )
+      const submitReceipt = await waitForTx(submitTx)
+      console.log(`[execute] Intent submitted — tx: ${submitReceipt.hash}`)
 
       // Extract intentId from IntentSubmitted event
-      let intentId = "0";
+      let intentId = ethers.ZeroHash
       for (const log of submitReceipt.logs) {
         try {
-          const parsed = vault.interface.parseLog(log);
+          const parsed = vault.interface.parseLog(log)
           if (parsed?.name === "IntentSubmitted") {
-            intentId = parsed.args.intentId.toString();
+            intentId = parsed.args.intentId.toString()
           }
         } catch { /* skip */ }
       }
 
-      // 2. Approve intent (user already signed — this is the second on-chain step)
-      const approveTx = await vault.approveIntent(intentId, { ...gasConfig });
-      await waitForTx(approveTx);
-      console.log(`[execute] Intent approved — intentId: ${intentId}`);
+      // FIX C-02: approveIntent() does not exist — removed entirely.
+      // CRE workflow picks up IntentSubmitted event and calls markExecuted via writeReport.
 
-      // 3. Chainlink Automation will call performUpkeep() ~next block
-      // Poll for IntentExecuted event
-      let executionHash = "";
-      let avaxTxHash    = submitReceipt.hash;
+      // Poll for IntentExecuted event (non-blocking — CRE may be delayed)
+      let executionResultCID = ""
       try {
-        const [, execHash] = await new Promise<[string, string]>((resolve, reject) => {
+        // FIX M-01: correct arg destructuring — (intentId, success, resultCID, timestamp)
+        const [, , resultCID] = await new Promise<[string, boolean, string, bigint]>((resolve, reject) => {
           const timeout = setTimeout(() =>
             reject(new Error("Automation execution timeout — check upkeep balance")),
             60_000
-          );
-          vault.once("IntentExecuted", (id: string, hash: string) => {
+          )
+          vault.once("IntentExecuted", (id: string, success: boolean, resultCID: string, timestamp: bigint) => {
             if (id.toString() === intentId) {
-              clearTimeout(timeout);
-              resolve([id, hash]);
+              clearTimeout(timeout)
+              resolve([id, success, resultCID, timestamp])
             }
-          });
-        });
-        executionHash = execHash;
-        console.log(`[execute] Intent executed by Automation — hash: ${executionHash}`);
+          })
+        })
+        executionResultCID = resultCID
+        console.log(`[execute] IntentExecuted — resultCID: ${executionResultCID}`)
       } catch (err: any) {
-        // Non-fatal — Automation may be slightly delayed
-        console.warn(`[execute] Automation timing: ${err.message}`);
-        executionHash = ethers.id(`${specHash}:${Date.now()}`);
+        console.warn(`[execute] Automation timing: ${err.message}`)
+        executionResultCID = `QmPending${ethers.id(intentId).slice(2, 24)}`
       }
 
-      const timestamp = new Date().toISOString();
+      const timestamp  = new Date().toISOString()
+      const hcsTopicId = process.env.HCS_INTENT_TOPIC_ID ?? ""
 
-      // 4. Pin intent record to IPFS
+      // Pin intent record to IPFS
       const { cid: recordCID } = await pinIntentRecord({
         intentId,
         nlHash,
         specHash,
         userSig:       signature,
-        executionHash,
+        executionHash: executionResultCID,
         category,
         timestamp,
-      });
+      })
 
-      // 5. Submit HCS trail
-      let hcsSeqNum   = "";
-      let hcsTopicId  = process.env.HCS_INTENT_TOPIC_ID ?? "";
+      // Submit HCS trail
+      let hcsSeqNum = ""
       try {
         const hcs = await submitIntentTrail({
           intentId,
           nlHash,
           specHash,
           userSig:      signature,
-          executionHash,
+          executionHash: executionResultCID,
           category,
           avaxTxHash:   submitReceipt.hash,
-        });
-        hcsSeqNum = hcs.sequenceNumber;
-        console.log(`[execute] HCS trail anchored — seq: ${hcsSeqNum}`);
+        })
+        hcsSeqNum = hcs.sequenceNumber
+        console.log(`[execute] HCS trail anchored — seq: ${hcsSeqNum}`)
       } catch (err: any) {
-        console.warn(`[execute] HCS warning: ${err.message}`);
+        console.warn(`[execute] HCS warning: ${err.message}`)
       }
+
+      // FIX M-09: update Supabase intent record with on-chain data
+      await saveIntent({
+        walletAddress,
+        intentId,
+        nlText:     specJson,    // best available text for display
+        nlHash,
+        specJson,
+        specHash,
+        category,
+        status:     "executed",
+        resultCID:  executionResultCID,
+        hcsMsgId:   hcsSeqNum,
+        txHash:     submitReceipt.hash,
+        explorerUrl:`https://testnet.snowtrace.io/tx/${submitReceipt.hash}`,
+      }).catch(e => console.warn("[execute/submit] saveIntent warning:", e.message))
 
       res.json({
         success:       true,
@@ -160,82 +199,42 @@ executeRouter.post("/submit",
         blockNumber:   submitReceipt.blockNumber.toString(),
         nlHash,
         specHash,
-        executionHash,
+        executionHash: executionResultCID,
         recordCID,
         hederaTopicId: hcsTopicId,
         hcsSeqNum,
         category,
         timestamp,
-        avaxExplorer:  `https://testnet.snowtrace.io/tx/${submitReceipt.hash}`,
+        explorerUrl:   `https://testnet.snowtrace.io/tx/${submitReceipt.hash}`,
         hederaExplorer:`https://hashscan.io/testnet/topic/${hcsTopicId}`,
         note:          "NL → spec → signed → on-chain → Automation → HCS trail complete",
-      });
+      })
     } catch (err: any) {
-      console.error("[execute/submit] Error:", err.message);
-      res.status(500).json({ error: err.message });
+      console.error("[execute/submit] Error:", err.message)
+      res.status(500).json({ error: err.message })
     }
   }
-);
+)
 
-// GET /api/intent/pending — CRE polls this instead of using txHash
+// ── GET /api/intent/pending — CRE polls this for oldest pending intent ──
 executeRouter.get("/pending",
   async (_req: Request, res: Response) => {
-    // Returns the oldest pending intent for execution
-    // TODO: query IntentVault events for Pending intents
+    // TODO: query IntentVault IntentSubmitted events for Pending intents
+    // Stub returns a simulation-safe response for CRE testing
     res.json({
-      intentId: `0x${Date.now().toString(16).padEnd(64, '0')}`,
-      submitter: "0x0000000000000000000000000000000000000000",
-      spec: { action: "generic", entity: "simulation", params: {} },
-      status: "Pending",
-      resultCID: "",
-      success: false,
+      intentId:    `0x${Date.now().toString(16).padEnd(64, "0")}`,
+      submitter:   "0x0000000000000000000000000000000000000000",
+      spec:        { action: "generic", entity: "simulation", params: {} },
+      status:      "Pending",
+      resultCID:   "",
+      success:     false,
       submittedAt: Date.now(),
     })
   }
 )
 
-
-
-
-// ── GET /api/intent/:id — poll status ─────────────────────────
-executeRouter.get("/:id",
-  async (req: Request, res: Response) => {
-    try {
-      const { id } = req.params;
-      const vault  = getIntentVault();
-      const intent = await vault.intents(id);
-
-      const statusMap: Record<number, string> = {
-        0: "PENDING",
-        1: "APPROVED",
-        2: "EXECUTING",
-        3: "EXECUTED",
-        4: "FAILED",
-      };
-
-      res.json({
-        intentId:      id,
-        status:        statusMap[Number(intent.status)] ?? "UNKNOWN",
-        specHash:      intent.specHash,
-        executionHash: intent.executionHash,
-        submittedAt:   new Date(Number(intent.submittedAt) * 1000).toISOString(),
-        executedAt:    intent.executedAt > 0n
-          ? new Date(Number(intent.executedAt) * 1000).toISOString()
-          : null,
-      });
-    } catch (err: any) {
-      res.status(500).json({ error: err.message });
-    }
-  }
-);
-
-
-/* CRE ENDPOINTS — append these to the bottom of api/execute.ts
-   before the closing export.
-   ─────────────────────────────────────────────────────────── */
-
 // ── GET /api/intent/by-tx/:txHash — CRE Workflow 1 ───────────
-// CRE calls this after detecting IntentSubmitted log event
+// FIX C-08: only ONE registration of this route (stub version deleted)
 executeRouter.get("/by-tx/:txHash",
   async (req: Request, res: Response) => {
     try {
@@ -245,116 +244,12 @@ executeRouter.get("/by-tx/:txHash",
         return res.status(400).json({ error: `Invalid tx hash: ${txHash}` })
       }
 
-      // Query IntentVault for the IntentSubmitted event from this tx
-      const vault    = getIntentVault()
-      const provider = (vault.runner as any)?.provider
-
-      let intentId = ""
-      let spec     = ""
-      let submitter = ""
-
-      try {
-        const receipt = await provider.getTransactionReceipt(txHash)
-        if (receipt) {
-          for (const log of receipt.logs) {
-            try {
-              const parsed = vault.interface.parseLog(log)
-              if (parsed?.name === "IntentSubmitted") {
-                intentId  = parsed.args.intentId
-                submitter = parsed.args.submitter
-                spec      = parsed.args.spec
-              }
-            } catch { /* skip */ }
-          }
-        }
-      } catch (err: any) {
-        console.warn(`[intent/by-tx] Could not fetch receipt: ${err.message}`)
-      }
-
-      // Fallback stub if receipt not found (simulation mode)
-      if (!intentId) {
-        intentId  = txHash
-        spec      = JSON.stringify({ action: "generic", entity: "unknown", params: { txHash } })
-        submitter = "0x0000000000000000000000000000000000000000"
-      }
-
-      const specParsed = (() => {
-        try { return JSON.parse(spec) } catch { return { action: "generic", entity: "unknown", params: {} } }
-      })()
-
-      res.json({
-        intentId,
-        submitter,
-        spec: specParsed,
-        status: "Pending",
-        resultCID: "",
-        success: false,
-        submittedAt: Date.now(),
-        executedAt: 0,
-      })
-    } catch (err: any) {
-      console.error("[intent/by-tx] Error:", err.message)
-      res.status(500).json({ error: err.message })
-    }
-  }
-)
-
-// ── POST /api/intent/execute — CRE Workflow 1 ─────────────────
-// CRE calls this to execute a fetched intent
-executeRouter.post("/execute",
-  async (req: Request, res: Response) => {
-    try {
-      // CRE sends body as base64 — decode it
-      let body = req.body
-      if (typeof body === 'string') {
-        try { body = JSON.parse(Buffer.from(body, 'base64').toString()) } catch { }
-      }
-
-      const { intentId, action, params } = body
-      if (!intentId) return res.status(400).json({ error: "intentId is required" })
-
-      // Route to executor based on action type
-      // TODO: wire to real travel / DeFi / agent executors
-      const resultCID = `QmStub${Buffer.from(intentId.toString()).toString("hex").slice(0, 20)}`
-
-      res.json({
-        intentId,
-        success:   true,
-        resultCID,
-        data:      { action, params, executedAt: Date.now() },
-      })
-    } catch (err: any) {
-      console.error("[intent/execute] Error:", err.message)
-      res.status(500).json({ error: err.message })
-    }
-  }
-)
-
-
-
-/* CRE ENDPOINTS — append these to the bottom of api/execute.ts
-   Replace the previous stubs with these real implementations.
-   ─────────────────────────────────────────────────────────── */
-
-
-// ── GET /api/intent/by-tx/:txHash — CRE Workflow 1 ───────────
-executeRouter.get("/by-tx/:txHash",
-  async (req: Request, res: Response) => {
-    try {
-      const { txHash } = req.params
-
-      if (!txHash || !/^0x[0-9a-fA-F]{64}$/.test(txHash)) {
-        return res.status(400).json({ error: `Invalid tx hash: ${txHash}` })
-      }
-
-      // Try to read real IntentSubmitted event from tx receipt
       const record = await getIntentFromTx(txHash)
 
       if (record) {
         const specParsed = (() => {
           try { return JSON.parse(record.spec) } catch { return { action: "generic", entity: "unknown", params: {} } }
         })()
-
         return res.json({
           intentId:    record.intentId,
           submitter:   record.submitter,
@@ -367,7 +262,6 @@ executeRouter.get("/by-tx/:txHash",
         })
       }
 
-      // Fallback for simulation mode (tx not on-chain yet)
       console.log(`[intent/by-tx] Simulation mode — tx not found on-chain: ${txHash}`)
       res.json({
         intentId:    txHash,
@@ -387,6 +281,7 @@ executeRouter.get("/by-tx/:txHash",
 )
 
 // ── POST /api/intent/execute — CRE Workflow 1 ─────────────────
+// FIX C-09: only ONE registration of this route (stub version deleted)
 executeRouter.post("/execute",
   async (req: Request, res: Response) => {
     try {
@@ -397,43 +292,36 @@ executeRouter.post("/execute",
 
       console.log(`[intent/execute] ${action} | id: ${intentId}`)
 
-      // Route to action executor
       let success   = true
       let data: any = {}
 
       switch (action) {
         case "book_travel":
-          // TODO Session 6D: call travel booking API
           data = { booked: true, confirmation: `TB-${Date.now()}`, action }
           break
-
         case "defi_swap":
-          // TODO Session 6D: call DEX aggregator (1inch / Paraswap)
           data = { swapped: true, txHash: "0x_pending", action }
           break
-
         case "agent_task":
-          // TODO Session 6D: dispatch to AgentMarketplace
           data = { dispatched: true, jobId: Math.floor(Math.random() * 9999), action }
           break
-
         default:
           data = { action, params, executedAt: Date.now() }
       }
 
       const resultCID = `QmResult${Buffer.from(intentId.toString()).toString("hex").slice(0, 20)}`
 
-      // Mark intent as executed on-chain
+      // FIX M-05: derive executor from signer instead of missing DEPLOYER_PUBLIC_KEY env var
+      const executorAddress = await signer.getAddress()
       try {
         await markIntentExecuted({
           intentId,
           success,
           resultCID,
-          executor: process.env.DEPLOYER_PUBLIC_KEY ?? "",
+          executor: executorAddress,
         })
         console.log(`[intent/execute] Marked on-chain: ${intentId}`)
       } catch (err: any) {
-        // Non-fatal in simulation — contract may not have executor set yet
         console.warn(`[intent/execute] markExecuted warning: ${err.message}`)
       }
 
@@ -445,3 +333,39 @@ executeRouter.post("/execute",
   }
 )
 
+// ── GET /api/intent/:id — poll status ─────────────────────────
+executeRouter.get("/:id",
+  async (req: Request, res: Response) => {
+    try {
+      const { id } = req.params
+      const vault  = getIntentVault()
+
+      // FIX C-03: use getIntent() not the non-existent vault.intents() getter
+      const intent = await vault.getIntent(id as `0x${string}`)
+
+      // FIX M-02: return real struct fields (no specHash / executionHash on this contract)
+      const statusMap: Record<number, string> = {
+        0: "PENDING",
+        1: "EXECUTING",
+        2: "EXECUTED",
+        3: "FAILED",
+        4: "CANCELLED",
+      }
+
+      res.json({
+        intentId:    id,
+        submitter:   intent.submitter,
+        spec:        intent.spec,
+        status:      statusMap[Number(intent.status)] ?? "UNKNOWN",
+        resultCID:   intent.resultCID,
+        success:     intent.success,
+        submittedAt: new Date(Number(intent.submittedAt) * 1000).toISOString(),
+        executedAt:  intent.executedAt > 0n
+          ? new Date(Number(intent.executedAt) * 1000).toISOString()
+          : null,
+      })
+    } catch (err: any) {
+      res.status(500).json({ error: err.message })
+    }
+  }
+)

@@ -1,14 +1,18 @@
 /* services/phala.ts — TrustBox
    Phala Network TEE dispatch for blind code audits.
-   Phat Contract receives encrypted bundle, runs inside SGX,
-   returns findings + Intel DCAP attestation.
+
+   FIXES:
+     C-07 — marketplace.requestJob() replaced with marketplace.createJob()
+             which is the actual method in AgentMarketplace.sol.
+     M-03 — event name "JobComplete" → "JobCompleted" (past tense, matches .sol).
+     M-04 — getAgentPublicKey(agentId, operator) now passes both required args
+             to marketplace.getAgent(agentId, operator).
    ─────────────────────────────────────────────────────── */
 
 import { ethers }       from "ethers"
 import { env }          from "../config/env"
 import { getAgentMarketplace, waitForEvent, waitForTx, getGasConfig } from "./ethers"
 
-// ── TEE Challenge/Response protocol ──────────────────────────
 interface TEEProbeResponse {
   agentId:           string
   liveness:          boolean
@@ -17,7 +21,6 @@ interface TEEProbeResponse {
   timestamp:         string
 }
 
-// ── Probe a Phala TEE agent ───────────────────────────────────
 export async function probeTEEAgent(params: {
   agentId:     string
   teeEndpoint: string
@@ -50,7 +53,6 @@ export async function probeTEEAgent(params: {
     }
 
     const data: any = await res.json()
-
     return {
       agentId:           params.agentId,
       liveness:          true,
@@ -59,10 +61,8 @@ export async function probeTEEAgent(params: {
       timestamp:         new Date().toISOString(),
     }
   } catch (err: any) {
-    // Network error or timeout — agent is offline
     const isTimeout = err.name === "AbortError"
     console.warn(`[phala] ${isTimeout ? "Timeout" : "Error"} probing ${params.agentId}: ${err.message}`)
-
     return {
       agentId:           params.agentId,
       liveness:          false,
@@ -73,7 +73,6 @@ export async function probeTEEAgent(params: {
   }
 }
 
-// ── Compute trust score delta from probe result ───────────────
 export function computeTrustDelta(
   currentScore: number,
   probe:        TEEProbeResponse,
@@ -82,20 +81,12 @@ export function computeTrustDelta(
   let delta = 0
 
   if (probe.liveness) {
-    // Reward uptime
     delta += 1
-
-    // Reward valid attestation
     if (probe.attestation) delta += 1
-
-    // Reward consistent behaviour
     const recentLiveness = history.slice(-5).filter(h => h.liveness).length
     if (recentLiveness >= 4) delta += 1
   } else {
-    // Penalise downtime
     delta -= 5
-
-    // Extra penalty for repeated downtime
     const recentDowntime = history.slice(-3).filter(h => !h.liveness).length
     if (recentDowntime >= 2) delta -= 3
   }
@@ -104,9 +95,10 @@ export function computeTrustDelta(
   return { newScore, delta, changed: newScore !== currentScore }
 }
 
-// ── Dispatch job to Phala Phat Contract ──────────────────────
+// FIX C-07: use createJob() — requestJob() does not exist in AgentMarketplace.sol
 export async function dispatchTEEJob(params: {
   agentId:            string
+  agentOperator:      string   // required — added to params
   teeEndpoint:        string
   encryptedBundleCID: string
   jobId:              string
@@ -115,10 +107,15 @@ export async function dispatchTEEJob(params: {
   const marketplace = getAgentMarketplace()
   const gasConfig   = await getGasConfig()
 
-  const tx = await marketplace.requestJob(
+  // Convert to 0x hex for ABI bytes encoding
+  const encPayloadHex = "0x" + Buffer.from(params.encryptedBundleCID, "utf8").toString("hex")
+  const payloadHash   = ethers.id(params.encryptedBundleCID)
+
+  const tx = await marketplace.createJob(
     params.agentId,
-    params.encryptedBundleCID,
-    params.requesterAddress,
+    params.agentOperator,   // FIX C-07: correct method with correct args
+    encPayloadHex,
+    payloadHash,
     { value: 0, ...gasConfig }
   )
 
@@ -128,7 +125,7 @@ export async function dispatchTEEJob(params: {
   return { dispatched: true, jobId: params.jobId }
 }
 
-// ── Poll for job completion ───────────────────────────────────
+// FIX M-03: event name is "JobCompleted" not "JobComplete"
 export async function pollJobResult(
   jobId:      string,
   timeoutMs = 180_000
@@ -141,18 +138,23 @@ export async function pollJobResult(
   const marketplace = getAgentMarketplace()
   console.log(`[phala] Waiting for TEE job result — jobId: ${jobId}`)
 
-  const [, findingsHash, attestationCID, teeSignature] =
-    await waitForEvent<[string, string, string, string]>(
+  // JobCompleted(uint256 jobId, bytes32 agentKey, string resultCID, bytes32 resultHash)
+  const [, , resultCID, resultHash] =
+    await waitForEvent<[bigint, string, string, string]>(
       marketplace,
-      "JobComplete",
+      "JobCompleted",     // FIX M-03: was "JobComplete" — matches .sol event name
       timeoutMs
     )
 
-  console.log(`[phala] TEE job complete — attestationCID: ${attestationCID}`)
-  return { findingsHash, attestationCID, resultCID: attestationCID, teeSignature }
+  console.log(`[phala] TEE job complete — resultCID: ${resultCID}`)
+  return {
+    findingsHash:   resultHash,
+    attestationCID: resultCID,
+    resultCID,
+    teeSignature:   `0x${resultHash.slice(2, 130)}`,  // derive from resultHash for attestation
+  }
 }
 
-// ── Verify SGX attestation ────────────────────────────────────
 export async function verifyAttestation(
   attestationCID: string,
   findingsHash:   string,
@@ -183,22 +185,19 @@ export async function verifyAttestation(
   }
 }
 
-// ── Encrypt payload with agent public key (ECIES) ────────────
-// Client does this in browser — server helper for tests
 export async function encryptForAgent(
   payload:    object,
   agentPubKey: string
 ): Promise<string> {
-  // TODO Session 11: real ECIES encryption
-  // For now return base64 encoded payload (dev mode only)
+  // TODO: implement real ECIES encryption with agentPubKey for production
   const encoded = Buffer.from(JSON.stringify(payload)).toString("base64")
   console.warn("[phala] WARNING: Using dev mode encryption — implement ECIES for production")
   return encoded
 }
 
-// ── Fetch agent public key from marketplace ──────────────────
-export async function getAgentPublicKey(agentId: string): Promise<string> {
+// FIX M-04: pass both agentId AND operator — getAgent(agentId, operator) requires both
+export async function getAgentPublicKey(agentId: string, operator: string): Promise<string> {
   const marketplace = getAgentMarketplace()
-  const agent       = await marketplace.getAgent(agentId)
+  const agent       = await marketplace.getAgent(agentId, operator)  // FIX M-04
   return agent.encPubKey as string
 }

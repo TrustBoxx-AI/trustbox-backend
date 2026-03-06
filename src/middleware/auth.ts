@@ -1,34 +1,23 @@
-/* middleware/auth.ts — TrustBox (UPDATED)
+/* middleware/auth.ts — TrustBox
    requireWalletSig — verifies EIP-191 signature on request body
    requireAuth      — verifies JWT from Authorization header
-   apiLimiter       — rate limiter export
+   optionalAuth     — attaches wallet if token present, continues if not
+
+   NOTE: apiLimiter and walletRateLimit are defined solely in
+   middleware/rateLimit.ts. They are NOT exported from here to
+   avoid the duplicate-export shadowing bug (H-01).
    ────────────────────────────────────────────────────────────── */
 
 import { Request, Response, NextFunction } from "express"
 import { ethers }                          from "ethers"
-import jwt                            from "jsonwebtoken"
-import rateLimit                           from "express-rate-limit"
+import jwt                                 from "jsonwebtoken"
 import { env }                             from "../config/env"
 import { validateSession }                 from "../services/supabase"
 
-// ── API Rate limiter ──────────────────────────────────────────
-export const apiLimiter = rateLimit({
-  windowMs: 15 * 60 * 1000,  // 15 minutes
-  max:      100,
-  standardHeaders: true,
-  legacyHeaders:   false,
-  message: { error: "Too many requests — try again later" },
-})
-
-export const walletRateLimit = rateLimit({
-  windowMs: 60 * 1000,  // 1 minute
-  max:      10,
-  standardHeaders: true,
-  legacyHeaders:   false,
-  message: { error: "Rate limit exceeded" },
-})
-
 // ── EIP-191 wallet signature verification ─────────────────────
+// IMPORTANT: this middleware must be placed BEFORE validate(Schema)
+// in the middleware chain so it hashes the original raw body, not
+// the Zod-coerced version. (Fixes H-02 / H-03 / H-04)
 export function requireWalletSig(req: Request, res: Response, next: NextFunction) {
   const signature    = req.headers["x-wallet-signature"] as string
   const walletHeader = req.headers["x-wallet-address"]   as string
@@ -38,7 +27,7 @@ export function requireWalletSig(req: Request, res: Response, next: NextFunction
   }
 
   try {
-    const message  = JSON.stringify(req.body)
+    const message   = JSON.stringify(req.body)
     const recovered = ethers.verifyMessage(message, signature).toLowerCase()
 
     if (recovered !== walletHeader.toLowerCase()) {
