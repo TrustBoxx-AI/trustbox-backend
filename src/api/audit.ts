@@ -77,8 +77,21 @@ auditRouter.post("/",
 
       const auditedAt = new Date().toISOString();
 
+      // Normalise contractAddress — user may have entered a name or partial address
+      // We accept any string and hash it to bytes32 for on-chain storage
+      const normalisedAddress = ethers.isAddress(contractAddress)
+        ? contractAddress
+        : ethers.zeroPadValue(
+            ethers.toUtf8Bytes(contractAddress).slice(0, 32),
+            32
+          ).slice(0, 42).padEnd(42, "0");
+      // Use original string in the report; normalised form for on-chain calls
+      const onChainAddr = ethers.isAddress(contractAddress)
+        ? contractAddress
+        : "0x" + ethers.keccak256(ethers.toUtf8Bytes(contractAddress)).slice(26);
+
       // 1. Run analysis
-      const { findings, score } = runStaticAnalysis(contractAddress, contractName);
+      const { findings, score } = runStaticAnalysis(onChainAddr, contractName);
 
       // 2. Compute Merkle root of findings hashes
       const findingHashes = findings.map(f =>
@@ -114,7 +127,7 @@ auditRouter.post("/",
       const gasConfig  = await getGasConfig();
 
       const tx = await registry.submitAudit(
-        contractAddress,
+        onChainAddr,
         reportHash,
         merkleRoot,
         cid,
