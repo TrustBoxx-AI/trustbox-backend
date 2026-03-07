@@ -41,7 +41,7 @@ teeRouter.post("/probe-and-update",
       if (tokenId) {
         try {
           const record = await getAgentRecord(Number(tokenId))
-          currentScore = Number(record.trustScore ?? record.score ?? 75)
+          if (record) currentScore = Number(record.trustScore ?? 75)
         } catch (err: any) {
           console.warn(`[tee/probe] Could not read score for tokenId ${tokenId}: ${err.message}`)
         }
