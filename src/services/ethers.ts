@@ -8,14 +8,12 @@ import { env }     from "../config/env";
 import { CONTRACTS, loadAbi } from "../config/chains";
 
 // ── Shared provider + signer ──────────────────────────────────
-// Explicitly define the network to prevent ethers v6 from
-// attempting ENS resolution (not supported on Avalanche Fuji).
-const FUJI_NETWORK = new ethers.Network("avalanche-fuji", 43113);
-
+// Pass chainId as a number and staticNetwork: true to prevent
+// ethers v6 from attempting ENS resolution on Avalanche Fuji.
 export const provider = new ethers.JsonRpcProvider(
   env.AVALANCHE_FUJI_RPC,
-  FUJI_NETWORK,
-  { staticNetwork: FUJI_NETWORK }   // ← disables ENS + network auto-detect
+  43113,            // chainId — tells ethers this is NOT mainnet, skip ENS
+  { staticNetwork: true }   // ← never auto-detect, never call ENS
 );
 
 export const signer = new ethers.Wallet(env.DEPLOYER_PRIVATE_KEY, provider);
