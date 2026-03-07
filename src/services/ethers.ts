@@ -134,14 +134,18 @@ export async function getIntentFromTx(txHash: string): Promise<{
 // Used by CRE Workflow 1 after off-chain execution completes.
 export async function markIntentExecuted(params: {
   intentId:      string;
-  executionHash: string;
+  executionHash?: string;  // optional — derived from resultCID if omitted
   resultCID:     string;
+  success?:      boolean;  // informational — not sent to contract
+  executor?:     string;   // informational — not sent to contract
 }): Promise<ethers.TransactionReceipt> {
   const vault     = getIntentVault();
   const gasConfig = await getGasConfig();
+  // executionHash defaults to keccak256(resultCID) when not supplied
+  const execHash  = params.executionHash ?? ethers.id(params.resultCID);
   const tx = await vault.markExecuted(
     params.intentId,
-    params.executionHash,
+    execHash,
     params.resultCID,
     { ...gasConfig }
   );
