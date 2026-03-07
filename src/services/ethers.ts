@@ -89,3 +89,105 @@ export function waitForEvent<T>(
     contract.on(eventName, handler);
   });
 }
+
+// ── getIntentFromTx — read IntentSubmitted event from receipt ─
+// Used by CRE Workflow 1 to hydrate intent data from a tx hash.
+export async function getIntentFromTx(txHash: string): Promise<{
+  intentId:  string;
+  submitter: string;
+  nlHash:    string;
+  specHash:  string;
+  spec:      string;
+  category:  string;
+  sig:       string;
+} | null> {
+  try {
+    const receipt = await provider.getTransactionReceipt(txHash);
+    if (!receipt) return null;
+
+    const vault = getIntentVault();
+    for (const log of receipt.logs) {
+      try {
+        const parsed = vault.interface.parseLog(log);
+        if (parsed?.name === "IntentSubmitted") {
+          const { intentId, submitter, nlHash, specHash, spec, category, sig } = parsed.args;
+          return {
+            intentId:  intentId.toString(),
+            submitter: submitter as string,
+            nlHash:    nlHash    as string,
+            specHash:  specHash  as string,
+            spec:      spec      as string,
+            category:  category  as string,
+            sig:       sig       as string,
+          };
+        }
+      } catch { /* skip non-matching logs */ }
+    }
+    return null;
+  } catch (err: any) {
+    console.warn("[ethers] getIntentFromTx failed:", err.message);
+    return null;
+  }
+}
+
+// ── markIntentExecuted — write execution result back to vault ─
+// Used by CRE Workflow 1 after off-chain execution completes.
+export async function markIntentExecuted(params: {
+  intentId:      string;
+  executionHash: string;
+  resultCID:     string;
+}): Promise<ethers.TransactionReceipt> {
+  const vault     = getIntentVault();
+  const gasConfig = await getGasConfig();
+  const tx = await vault.markExecuted(
+    params.intentId,
+    params.executionHash,
+    params.resultCID,
+    { ...gasConfig }
+  );
+  return waitForTx(tx);
+}
+
+// ── getAgentRecord — read AgentRecord struct from TrustRegistry
+// Used by TEE probe to get current trust score before updating.
+export async function getAgentRecord(tokenId: number): Promise<{
+  agentId:        string;
+  modelHash:      string;
+  operator:       string;
+  capabilityHash: string;
+  metadataURI:    string;
+  trustScore:     number;
+  mintedAt:       number;
+  isRevoked:      boolean;
+} | null> {
+  try {
+    const registry = getTrustRegistry();
+    const rec = await registry.verifyAgent(tokenId);
+    return {
+      agentId:        rec.agentId        as string,
+      modelHash:      rec.modelHash      as string,
+      operator:       rec.operator       as string,
+      capabilityHash: rec.capabilityHash as string,
+      metadataURI:    rec.metadataURI    as string,
+      trustScore:     Number(rec.trustScore),
+      mintedAt:       Number(rec.mintedAt),
+      isRevoked:      rec.isRevoked      as boolean,
+    };
+  } catch (err: any) {
+    console.warn("[ethers] getAgentRecord failed:", err.message);
+    return null;
+  }
+}
+
+// ── updateAgentScore — call TrustRegistry.updateScore() ───────
+// Used by TEE probe (Workflow 3) after liveness + behaviour check.
+export async function updateAgentScore(
+  tokenId: number,
+  newScore: number,
+  reason:  string
+): Promise<ethers.TransactionReceipt> {
+  const registry  = getTrustRegistry();
+  const gasConfig = await getGasConfig();
+  const tx = await registry.updateScore(tokenId, newScore, reason, { ...gasConfig });
+  return waitForTx(tx);
+}
