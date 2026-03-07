@@ -1,9 +1,4 @@
-/* middleware/validate.ts — TrustBox
-   Zod request body validators for all 6 endpoints.
-   Fields that require multi-step client-side work (ZK proofs,
-   encrypted bundles) are optional so the demo/testnet flow works
-   without the full pre-processing pipeline.
-   ─────────────────────────────────────────────────────────── */
+/* middleware/validate.ts — TrustBox */
 
 import { Request, Response, NextFunction } from "express";
 import { z, ZodSchema } from "zod";
@@ -14,7 +9,7 @@ export function validate(schema: ZodSchema) {
     if (!result.success) {
       return res.status(400).json({
         error:  "Validation failed",
-       issues: result.error.issues.map((i: import("zod").ZodIssue) => ({
+        issues: result.error.issues.map(i => ({
           field:   i.path.join("."),
           message: i.message,
         })),
@@ -25,43 +20,49 @@ export function validate(schema: ZodSchema) {
   };
 }
 
-// ── Schemas ───────────────────────────────────────────────────
-
+// ── Step 1: prepare (compute hashes + pin metadata, no mint) ──
 export const VerifySchema = z.object({
   walletAddress: z.string().startsWith("0x").length(42),
   agentName:     z.string().min(1).max(100),
-  model:         z.string().min(1).max(100).default("gpt-4o"),
-  operator:      z.string().min(1).max(100).default("TrustBox Demo"),
-  capabilities:  z.string().default("Audit, Verification"),
-  // Optional — defaults to "development" so testnet demos work without
-  // an explicit environment selection in the frontend form.
-  environment:   z.enum(["production", "staging", "development"]).default("development"),
+  model:         z.string().min(1).max(100),
+  operator:      z.string().min(1).max(100),
+  capabilities:  z.string(),
+  environment:   z.enum(["production","staging","development"]).default("development"),
+});
+
+// ── Step 2: mint (human approved + signed) ────────────────────
+export const VerifyMintSchema = z.object({
+  walletAddress:     z.string().startsWith("0x").length(42),
+  agentId:           z.string(),
+  modelHash:         z.string().startsWith("0x"),
+  capHash:           z.string().startsWith("0x"),
+  metadataURI:       z.string(),
+  approvalMessage:   z.string(),
+  approvalSignature: z.string().startsWith("0x"),
+  trustScore:        z.number().optional(),
 });
 
 export const AuditSchema = z.object({
   walletAddress:   z.string().startsWith("0x").length(42),
   contractName:    z.string().min(1).max(100),
   contractAddress: z.string().startsWith("0x").length(42),
-  chain:           z.string().default("avalanche-fuji"),
+  chain:           z.string(),
   abiSource:       z.string().optional(),
   deployer:        z.string().optional(),
 });
 
 export const ScanSchema = z.object({
   walletAddress: z.string().startsWith("0x").length(42).optional(),
-  entityType:    z.string().default("security-agent"),
+  entityType:    z.string(),
   entityName:    z.string().min(1).max(100),
-  data:          z.record(z.unknown()).default({}),
+  data:          z.record(z.unknown()),
 });
 
 export const ScoreSchema = z.object({
   walletAddress:   z.string().startsWith("0x").length(42),
-  // hederaAccountId is optional so the form works without a Hedera wallet
   hederaAccountId: z.string().optional().default(""),
-  // proof and publicSignals are optional — when absent the endpoint
-  // returns a demo/simulated score instead of verifying a real ZK proof.
-  proof:           z.object({}).optional(),
-  publicSignals:   z.array(z.string()).optional(),
+  proof:           z.object({}).passthrough().optional(),
+  publicSignals:   z.array(z.string()).optional().default([]),
   modelVersion:    z.string().default("TrustCredit v2.1"),
 });
 
@@ -69,9 +70,7 @@ export const BlindAuditSchema = z.object({
   walletAddress:      z.string().startsWith("0x").length(42),
   projectName:        z.string().min(1).max(100),
   agentId:            z.string(),
-  // Optional — client should pin the encrypted bundle first; if absent
-  // the backend uses a stub CID so the demo flow still completes.
-  encryptedBundleCID: z.string().optional().default("QmStubEncryptedBundle"),
+  encryptedBundleCID: z.string().optional().default("QmStubBundle"),
   auditScope:         z.array(z.string()).optional(),
   notes:              z.string().optional(),
 });
@@ -79,7 +78,7 @@ export const BlindAuditSchema = z.object({
 export const IntentParseSchema = z.object({
   walletAddress: z.string().startsWith("0x").length(42),
   nlText:        z.string().min(5).max(2000),
-  category:      z.enum(["Travel Booking", "Portfolio Rebalance", "Contributor Tip"]).default("Travel Booking"),
+  category:      z.enum(["Travel Booking","Portfolio Rebalance","Contributor Tip"]),
 });
 
 export const IntentSubmitSchema = z.object({
@@ -88,6 +87,6 @@ export const IntentSubmitSchema = z.object({
   nlHash:          z.string().startsWith("0x"),
   specHash:        z.string().startsWith("0x"),
   specJson:        z.string(),
-  category:        z.enum(["Travel Booking", "Portfolio Rebalance", "Contributor Tip"]).default("Travel Booking"),
+  category:        z.enum(["Travel Booking","Portfolio Rebalance","Contributor Tip"]),
   signature:       z.string().startsWith("0x"),
 });
