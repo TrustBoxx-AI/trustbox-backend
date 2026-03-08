@@ -30,8 +30,19 @@ app.use((_req, res, next) => {
 
 // ── CORS ──────────────────────────────────────────────────────
 app.use(cors({
-  origin:      [env.FRONTEND_ORIGIN, "http://localhost:5173"],
+  origin: (origin, callback) => {
+    const allowed = [
+      env.FRONTEND_ORIGIN,
+      "http://localhost:5173",
+      "https://trustbox-ai.vercel.app",
+    ]
+    // Allow requests with no origin (mobile apps, curl, Render health checks)
+    if (!origin || allowed.includes(origin)) return callback(null, true)
+    callback(new Error(`CORS: origin ${origin} not allowed`))
+  },
   credentials: true,
+  methods:     ["GET","POST","PUT","DELETE","OPTIONS"],
+  allowedHeaders: ["Content-Type","Authorization","x-wallet-address","x-signature"],
 }))
 
 // ── Body parsing ──────────────────────────────────────────────

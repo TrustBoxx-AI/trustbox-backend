@@ -292,3 +292,46 @@ historyRouter.post("/notifications/read", async (req: Request, res: Response) =>
     res.status(500).json({ error: err.message })
   }
 })
+
+// ── GET /api/history/stream — SSE for real-time dashboard updates ─────────────
+// Clients connect once and receive a "update" event whenever new activity lands.
+// Falls back gracefully — if the client disconnects the interval is cleared.
+const sseClients = new Map<string, Set<any>>();
+
+historyRouter.get("/stream", (req: Request, res: any) => {
+  const token = req.query.token as string;
+  if (!token) { res.status(401).end(); return; }
+
+  // Use wallet address as the room key (decoded from JWT already by middleware
+  // if auth middleware ran, otherwise fall back to raw token)
+  const wallet = (req as any).walletAddress ?? token;
+
+  res.setHeader("Content-Type",  "text/event-stream");
+  res.setHeader("Cache-Control", "no-cache");
+  res.setHeader("Connection",    "keep-alive");
+  res.flushHeaders();
+
+  // Register client
+  if (!sseClients.has(wallet)) sseClients.set(wallet, new Set());
+  sseClients.get(wallet)!.add(res);
+
+  // Heartbeat every 25s to keep connection alive through proxies
+  const heartbeat = setInterval(() => {
+    res.write("data: {\"type\":\"ping\"}\n\n");
+  }, 25_000);
+
+  req.on("close", () => {
+    clearInterval(heartbeat);
+    sseClients.get(wallet)?.delete(res);
+  });
+});
+
+// Call this after any history-writing operation to push to connected clients
+export function notifyHistoryUpdate(walletAddress: string) {
+  const clients = sseClients.get(walletAddress);
+  if (!clients?.size) return;
+  const payload = `data: ${JSON.stringify({ type: "update" })}\n\n`;
+  clients.forEach(client => {
+    try { client.write(payload); } catch { clients.delete(client); }
+  });
+}
