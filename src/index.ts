@@ -15,6 +15,8 @@ import { executeRouter }    from "./api/execute";
 import { agentsRouter }     from "./api/agents";
 import { proofRouter }      from "./api/proof";
 import { teeRouter }        from "./api/tee";
+import { chatRouter }       from "./api/chat";
+import { priceRouter }      from "./api/price";
 
 const app = express();
 
@@ -46,6 +48,8 @@ app.use("/api/intent",     executeRouter);
 app.use("/api/agents",     agentsRouter);
 app.use("/api/proof",      proofRouter);
 app.use("/api/tee",        teeRouter);       // ← CRE Workflow 3
+app.use("/api/agent",      chatRouter);      // ← HOL HCS-10 chat
+app.use("/api/price",       priceRouter);     // ← CRE Workflow 4 Tenderly price feeds
 
 // ── 404 handler ───────────────────────────────────────────────
 app.use((_req, res) => {

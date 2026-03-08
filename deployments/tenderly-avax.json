@@ -1,0 +1,25 @@
+{
+  "network": "tenderly-avax",
+  "chainId": 99943114,
+  "deployedAt": "2026-03-08T00:32:05.450Z",
+  "deployer": "0x494F52322eA822E35Cf9D05fF801e00Fc26AEa5F",
+  "explorerBase": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions",
+  "contracts": {
+    "trustRegistry": "0x7Dd290DaF02F98d3d583fb35540c5d78dDeCEcbA",
+    "auditRegistry": "0x1FBEA692383bEAB0843c72Dd8dA712c935AbFA06",
+    "intentVault": "0xa39BD8F5Fb7CA64BFD3632A43C7bBBE6D4152129",
+    "agentMarketplace": "0x8A24ea199EAAbc8AAcb7cb92660FD20a2BA2552A"
+  },
+  "explorerLinks": {
+    "trustRegistry": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions/contract/0x7Dd290DaF02F98d3d583fb35540c5d78dDeCEcbA",
+    "auditRegistry": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions/contract/0x1FBEA692383bEAB0843c72Dd8dA712c935AbFA06",
+    "intentVault": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions/contract/0xa39BD8F5Fb7CA64BFD3632A43C7bBBE6D4152129",
+    "agentMarketplace": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions/contract/0x8A24ea199EAAbc8AAcb7cb92660FD20a2BA2552A"
+  },
+  "chainlinkMainnetFeeds": {
+    "AVAX_USD": "0x0A77230d17318075983913bC2145DB16C7366156",
+    "ETH_USD": "0x976B3D034E162d8bD72D6b9C989d545b839003b0",
+    "BTC_USD": "0x2779D32d5166BAaa2B2b658333bA7e6Ec0C65743"
+  },
+  "note": "Forked from Avalanche C-Chain mainnet. Real Chainlink price feed state available."
+}

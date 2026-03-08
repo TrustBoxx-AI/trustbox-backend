@@ -14144,21 +14144,17 @@ var jsonHeaders = {
   "Content-Type": { values: ["application/json"] }
 };
 var executeIntentHandler = handler(evmClient.logTrigger({
-  addresses: ["0xB9aE50f6989574504e6CA465283BaD9570944B67"],
+  addresses: ["0xa39BD8F5Fb7CA64BFD3632A43C7bBBE6D4152129"],
   topics: [{ values: ["0xd9d4926cf0a81744b3d4e9b34db19b1ce3b3ff1eae30c36edadce6b20e01c0d1"] }]
 }), (runtime2, _triggerLog) => {
   const result = runtime2.runInNodeMode((nodeRuntime) => {
     const apiUrl = runtime2.config.apiUrl;
-    httpClient.sendRequest(nodeRuntime, {
-      url: `${apiUrl}/health`,
-      method: "GET"
-    });
     const intentRes = httpClient.sendRequest(nodeRuntime, {
       url: `${apiUrl}/api/intent/pending`,
       method: "GET"
     });
     const intent = json(intentRes.result());
-    console.log(`[TrustBox] Executing: ${intent.spec.action}`);
+    log(`[TrustBox] Executing: ${intent.spec.action}`);
     const execRes = httpClient.sendRequest(nodeRuntime, {
       url: `${apiUrl}/api/intent/execute`,
       method: "POST",
@@ -14170,7 +14166,7 @@ var executeIntentHandler = handler(evmClient.logTrigger({
       })).toString("base64")
     });
     const execResult = json(execRes.result());
-    console.log(`[TrustBox] Done: success=${execResult.success} CID=${execResult.resultCID}`);
+    log(`[TrustBox] Done: success=${execResult.success} CID=${execResult.resultCID}`);
     return execResult;
   }, consensusIdenticalAggregation())().result();
   const reportResult = runtime2.report({
@@ -14185,20 +14181,16 @@ var executeIntentHandler = handler(evmClient.logTrigger({
   return result;
 });
 var refreshCreditScoresHandler = handler(new CronCapability().trigger({ schedule: "0 */6 * * *" }), (runtime2, _cron) => {
-  console.log("[TrustBox] Credit score cron fired");
+  log("[TrustBox] Credit score cron fired");
   return runtime2.runInNodeMode((nodeRuntime) => {
     const apiUrl = runtime2.config.apiUrl;
-    httpClient.sendRequest(nodeRuntime, {
-      url: `${apiUrl}/health`,
-      method: "GET"
-    });
     const pendingRes = httpClient.sendRequest(nodeRuntime, {
       url: `${apiUrl}/api/score/pending`,
       method: "GET"
     });
     const raw = json(pendingRes.result());
     const pending = Array.isArray(raw) ? raw : raw?.pending ?? [];
-    console.log(`[TrustBox] ${pending.length} entities pending score refresh`);
+    log(`[TrustBox] ${pending.length} entities pending score refresh`);
     if (pending.length === 0) {
       return { refreshed: 0, total: 0 };
     }
@@ -14219,28 +14211,24 @@ var refreshCreditScoresHandler = handler(new CronCapability().trigger({ schedule
         })).toString("base64")
       });
       const { score, hcsMessageId } = json(scoreRes.result());
-      console.log(`[TrustBox] ${entity.entityId} = ${score} | HCS: ${hcsMessageId}`);
+      log(`[TrustBox] ${entity.entityId} = ${score} | HCS: ${hcsMessageId}`);
       refreshed++;
     }
-    console.log(`[TrustBox] Credit scores done: ${refreshed}/${pending.length}`);
+    log(`[TrustBox] Credit scores done: ${refreshed}/${pending.length}`);
     return { refreshed, total: pending.length };
   }, consensusIdenticalAggregation())().result();
 });
 var refreshAgentScoresHandler = handler(new CronCapability().trigger({ schedule: "0 */2 * * *" }), (runtime2, _cron) => {
-  console.log("[TrustBox] Agent trust score cron fired");
+  log("[TrustBox] Agent trust score cron fired");
   return runtime2.runInNodeMode((nodeRuntime) => {
     const apiUrl = runtime2.config.apiUrl;
-    httpClient.sendRequest(nodeRuntime, {
-      url: `${apiUrl}/health`,
-      method: "GET"
-    });
     const agentsRes = httpClient.sendRequest(nodeRuntime, {
       url: `${apiUrl}/api/agents/active`,
       method: "GET"
     });
     const raw = json(agentsRes.result());
     const agents = Array.isArray(raw) ? raw : raw?.agents ?? [];
-    console.log(`[TrustBox] Scanning ${agents.length} agents`);
+    log(`[TrustBox] Scanning ${agents.length} agents`);
     if (agents.length === 0) {
       return { scanned: 0, updated: 0 };
     }
@@ -14259,12 +14247,52 @@ var refreshAgentScoresHandler = handler(new CronCapability().trigger({ schedule:
       });
       const { newScore, changed } = json(probeRes.result());
       if (changed) {
-        console.log(`[TrustBox] ${agent.agentId} → ${newScore}`);
+        log(`[TrustBox] ${agent.agentId} → ${newScore}`);
         updated++;
       }
     }
-    console.log(`[TrustBox] Agent scores done: ${updated}/${agents.length}`);
+    log(`[TrustBox] Agent scores done: ${updated}/${agents.length}`);
     return { scanned: agents.length, updated };
+  }, consensusIdenticalAggregation())().result();
+});
+var verifyPriceFeedsHandler = handler(new CronCapability().trigger({ schedule: "*/15 * * * *" }), (runtime2, _cron) => {
+  log("[TrustBox] Price feed verification cron fired");
+  return runtime2.runInNodeMode((nodeRuntime) => {
+    const apiUrl = runtime2.config.apiUrl;
+    const avaxPriceRes = httpClient.sendRequest(nodeRuntime, {
+      url: `${apiUrl}/api/price/avax-vtn`,
+      method: "GET"
+    });
+    const avaxData = json(avaxPriceRes.result());
+    log(`[TrustBox] VTN-AVAX → AVAX/USD: $${avaxData.avaxUsd} | ETH/USD: $${avaxData.ethUsd}`);
+    const ethPriceRes = httpClient.sendRequest(nodeRuntime, {
+      url: `${apiUrl}/api/price/eth-vtn`,
+      method: "GET"
+    });
+    const ethData = json(ethPriceRes.result());
+    log(`[TrustBox] VTN-ETH  → ETH/USD: $${ethData.ethUsd}`);
+    const deviation = Math.abs(avaxData.ethUsd - ethData.ethUsd) / ethData.ethUsd * 100;
+    const verified = deviation < 0.5;
+    log(`[TrustBox] ETH/USD deviation: ${deviation.toFixed(4)}% → ${verified ? "VERIFIED" : "ANOMALY"}`);
+    const result = {
+      avaxUsd: avaxData.avaxUsd,
+      ethUsdAvax: avaxData.ethUsd,
+      ethUsdEth: ethData.ethUsd,
+      deviation,
+      verified,
+      timestamp: new Date().toISOString(),
+      blockAvax: avaxData.blockNumber,
+      blockEth: ethData.blockNumber
+    };
+    const writeRes = httpClient.sendRequest(nodeRuntime, {
+      url: `${apiUrl}/api/price/write-verified`,
+      method: "POST",
+      multiHeaders: jsonHeaders,
+      body: Buffer.from(JSON.stringify(result)).toString("base64")
+    });
+    const writeData = json(writeRes.result());
+    log(`[TrustBox] Written on-chain → tx: ${writeData.txHash} price: $${writeData.onChainPrice}`);
+    return result;
   }, consensusIdenticalAggregation())().result();
 });
 async function main() {
@@ -14272,7 +14300,8 @@ async function main() {
   await runner.run(() => [
     executeIntentHandler,
     refreshCreditScoresHandler,
-    refreshAgentScoresHandler
+    refreshAgentScoresHandler,
+    verifyPriceFeedsHandler
   ]);
 }
 main().catch(sendErrorResponse);

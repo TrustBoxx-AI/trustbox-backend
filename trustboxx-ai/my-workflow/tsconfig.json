@@ -1,16 +1,14 @@
 {
   "compilerOptions": {
-    "target": "esnext",
-    "module": "commonjs",
-    "outDir": "./dist",
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true,
-    "forceConsistentCasingInFileNames": true
+    "resolveJsonModule": true,
+    "outDir": "./dist",
+    "skipLibCheck": true
   },
-  "include": [
-    "main.ts",
-    "types.ts",
-    "node_modules/@chainlink/cre-sdk/dist/sdk/types/global.d.ts"
-  ]
+  "include": ["src/**/*", "*.ts"],
+  "exclude": ["node_modules", "dist"]
 }

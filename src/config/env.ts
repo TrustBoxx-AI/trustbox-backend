@@ -1,27 +1,24 @@
-/* config/env.ts — TrustBox */
+/* config/env.ts — TrustBox
+   Validated environment variables using Zod.
+   Fails fast at startup if anything is missing.
+   ─────────────────────────────────────────── */
 
-import { z }        from "zod"
-import * as dotenv  from "dotenv"
-dotenv.config()
+import { z } from "zod";
+import * as dotenv from "dotenv";
+dotenv.config();
 
 const EnvSchema = z.object({
-
   // Server
-  PORT:            z.string().default("4000"),
-  NODE_ENV:        z.enum(["development", "production", "test"]).default("development"),
-  FRONTEND_ORIGIN: z.string().default("http://localhost:5173"),
-  JWT_SECRET:      z.string().min(16).default("dev-secret-change-in-prod-min16chars"),
-  API_BASE_URL:    z.string().default("https://trustbox-backend-kxkr.onrender.com"),
-
-  // Supabase
-  SUPABASE_URL:         z.string().default(""),
-  SUPABASE_SERVICE_KEY: z.string().default(""),
+  PORT:             z.string().default("4000"),
+  NODE_ENV:         z.enum(["development", "production", "test"]).default("development"),
+  FRONTEND_ORIGIN:  z.string().default("http://localhost:5173"),
+  JWT_SECRET:       z.string().min(16),
 
   // Avalanche Fuji
-  AVALANCHE_FUJI_RPC:   z.string().url().default("https://api.avax-test.network/ext/bc/C/rpc"),
-  DEPLOYER_PRIVATE_KEY: z.string().startsWith("0x").length(66),
+  AVALANCHE_FUJI_RPC:     z.string().url(),
+  DEPLOYER_PRIVATE_KEY:   z.string().startsWith("0x").length(66),
 
-  // Contract addresses
+  // Contract addresses — optional until deployed
   TRUST_REGISTRY_ADDR:     z.string().optional(),
   AUDIT_REGISTRY_ADDR:     z.string().optional(),
   AGENT_MARKETPLACE_ADDR:  z.string().optional(),
@@ -29,45 +26,66 @@ const EnvSchema = z.object({
   FUNCTIONS_CONSUMER_ADDR: z.string().optional(),
 
   // Chainlink
-  CHAINLINK_SUBSCRIPTION_ID:     z.string().optional(),
-  CHAINLINK_DON_ID:              z.string().default("fun-avalanche-fuji-1"),
-  CHAINLINK_ROUTER:              z.string().default("0xA9d587a00A31A52Ed70D6026794a8FC5E2F5dCb0"),
-  CHAINLINK_LINK_TOKEN:          z.string().default("0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846"),
+  CHAINLINK_SUBSCRIPTION_ID:  z.string().optional(),
+  CHAINLINK_DON_ID:           z.string().default("fun-avalanche-fuji-1"),
+  CHAINLINK_ROUTER:           z.string().default("0xA9d587a00A31A52Ed70D6026794a8FC5E2F5dCb0"),
+  CHAINLINK_LINK_TOKEN:       z.string().default("0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846"),
   CHAINLINK_AUTOMATION_REGISTRY: z.string().default("0x819B58A646CDd8289275A87653a2aA4902b14fe6"),
-  CHAINLINK_UPKEEP_ID:           z.string().optional(),
-  CHAINLINK_SECRETS_VERSION:     z.string().optional(),
+  CHAINLINK_UPKEEP_ID:        z.string().optional(),
+  CHAINLINK_SECRETS_VERSION:  z.string().optional(),
 
   // Hedera
   HEDERA_OPERATOR_ID:  z.string().optional(),
   HEDERA_OPERATOR_KEY: z.string().optional(),
   HCS_CREDIT_TOPIC_ID: z.string().optional(),
   HCS_INTENT_TOPIC_ID: z.string().optional(),
+  HCS_AUDIT_TOPIC_ID:  z.string().optional(),
+  HCS_AGENT_TOPIC_ID:  z.string().optional(),
+
+  // HOL Registry + HCS-10
+  HOL_REGISTRY_TOPIC_ID: z.string().optional(),
+  HCS10_INBOX_TOPIC_ID:  z.string().optional(),
+  HCS10_OUTBOX_TOPIC_ID: z.string().optional(),
+  BACKEND_URL:           z.string().default("https://trustbox-backend-kxkr.onrender.com"),
+
+  // Tenderly Virtual TestNets
+  TENDERLY_AVAX_RPC:         z.string().optional(),   // VTN forked from Avalanche mainnet
+  TENDERLY_ETH_RPC:          z.string().optional(),   // VTN forked from Ethereum mainnet
+  TENDERLY_ADMIN_RPC:        z.string().optional(),   // Admin RPC (for tenderly_setBalance etc)
+  TENDERLY_EXPLORER_URL:     z.string().optional(),   // e.g. https://dashboard.tenderly.co/...
+  TENDERLY_AVAX_CHAIN_ID:    z.string().optional(),   // VTN chain ID (default: 43114)
+  TENDERLY_ETH_CHAIN_ID:     z.string().optional(),   // VTN chain ID (default: 1)
+  AUDIT_REGISTRY_TENDERLY_ADDR:    z.string().optional(),
+  INTENT_VAULT_TENDERLY_ADDR:      z.string().optional(),
+  TRUST_REGISTRY_TENDERLY_ADDR:    z.string().optional(),
+  AGENT_MARKETPLACE_TENDERLY_ADDR: z.string().optional(),
+  FUNCTIONS_CONSUMER_TENDERLY_ADDR:z.string().optional(),
   HTS_CREDIT_TOKEN_ID: z.string().optional(),
 
   // APIs
-  GROQ_API_KEY:   z.string().optional(),
-  PINATA_JWT:     z.string().optional(),
-  PINATA_GATEWAY: z.string().default("https://gateway.pinata.cloud"),
-  PHALA_ENDPOINT: z.string().optional(),
+  GROQ_API_KEY:     z.string().optional(),
+  PINATA_JWT:       z.string().optional(),
+  PINATA_GATEWAY:   z.string().default("https://gateway.pinata.cloud"),
+  PHALA_ENDPOINT:   z.string().optional(),
 
   // ZK
   ZK_WASM_PATH: z.string().default("./zk/CreditScore_js/CreditScore.wasm"),
   ZK_ZKEY_PATH: z.string().default("./zk/CreditScore_final.zkey"),
   ZK_VKEY_PATH: z.string().default("./zk/verification_key.json"),
-})
+});
 
 function parseEnv() {
-  const result = EnvSchema.safeParse(process.env)
+  const result = EnvSchema.safeParse(process.env);
   if (!result.success) {
-    console.error("\n❌  Invalid environment variables:\n")
+    console.error("\n❌  Invalid environment variables:\n");
     result.error.issues.forEach(issue => {
-      console.error(`   ${issue.path.join(".")} — ${issue.message}`)
-    })
-    console.error("\n   Copy .env.example to .env and fill in all required values.\n")
-    process.exit(1)
+      console.error(`   ${issue.path.join(".")} — ${issue.message}`);
+    });
+    console.error("\n   Copy .env.example to .env and fill in all required values.\n");
+    process.exit(1);
   }
-  return result.data
+  return result.data;
 }
 
-export const env = parseEnv()
-export type Env  = typeof env
+export const env = parseEnv();
+export type Env = typeof env;

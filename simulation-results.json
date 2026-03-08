@@ -1,0 +1,56 @@
+{
+  "generatedAt": "2026-03-08T00:50:09.198Z",
+  "results": [
+    {
+      "workflow": "1 — Intent Execution (EVM Log Trigger)",
+      "txHash": "0x292f6707fce5170a3e450502001a8821fb62fca64da28dbe2c8f61a72c36fbb6",
+      "explorerUrl": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions/tx/0x292f6707fce5170a3e450502001a8821fb62fca64da28dbe2c8f61a72c36fbb6",
+      "success": true,
+      "data": {
+        "spec": "{\"action\":\"book_travel\",\"entity\":\"NYC\",\"params\":{\"budget\":400,\"currency\":\"USD\"}}",
+        "nonce": "0"
+      }
+    },
+    {
+      "workflow": "2 — Credit Score Refresh (Cron) / ERC-8004 Mint",
+      "txHash": "0x3447ff76152218e345a9580a763de3b15f99f5a65ced58dc69f814c6c8fa49e1",
+      "explorerUrl": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions/tx/0x3447ff76152218e345a9580a763de3b15f99f5a65ced58dc69f814c6c8fa49e1",
+      "success": true,
+      "data": {
+        "agentId": "agt_sim_30998062",
+        "tokenId": "0",
+        "modelHash": "0xe8a15d10eee9be8d0a493cdc360b3344517979a3f7359d92175f28f983f99196"
+      }
+    },
+    {
+      "workflow": "3 — Agent Trust Score Probe (Cron)",
+      "txHash": "0x6172aa647e52667dfd790fad674969ade60adc112de4c0963511548fca0b7139",
+      "explorerUrl": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions/tx/0x6172aa647e52667dfd790fad674969ade60adc112de4c0963511548fca0b7139",
+      "success": true,
+      "data": {
+        "agentId": "sim-agent-1772931002184",
+        "teeEndpoint": "https://trustbox-backend-kxkr.onrender.com/api/tee/probe",
+        "stake": "0.1 AVAX"
+      }
+    },
+    {
+      "workflow": "4 — Cross-Chain Price Feed Verification (Tenderly VTN)",
+      "explorerUrl": "https://dashboard.tenderly.co/explorer/vnet/bab8b466-395a-4d72-a7da-e7f16c650b53/transactions",
+      "success": true,
+      "data": {
+        "prices": {
+          "AVAX_USD_AVAX": 8.90545852,
+          "ETH_USD_AVAX": 1969.87,
+          "ETH_USD_ETH": 1972.4641373,
+          "BTC_USD_ETH": 67381
+        },
+        "ethUsdDeviation": "0.1315%",
+        "verified": true,
+        "sources": {
+          "avaxVtn": "Avalanche mainnet fork",
+          "ethVtn": "Ethereum mainnet fork"
+        }
+      }
+    }
+  ]
+}

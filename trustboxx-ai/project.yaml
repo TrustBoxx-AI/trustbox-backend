@@ -1,12 +1,14 @@
-# CRE PROJECT SETTINGS — trustboxx-ai
+# ==========================================================================
+# CRE PROJECT SETTINGS — TrustBox AI
+# ==========================================================================
 staging-settings:
   rpcs:
     - chain-name: avalanche-testnet-fuji
-      url: https://api.avax-test.network/ext/bc/C/rpc
+      url: "https://virtual.avalanche.rpc.tenderly.co/bab8b466-395a-4d72-a7da-e7f16c650b53"
 
 production-settings:
   rpcs:
     - chain-name: avalanche-testnet-fuji
-      url: https://api.avax-test.network/ext/bc/C/rpc
+      url: "https://virtual.avalanche.rpc.tenderly.co/bab8b466-395a-4d72-a7da-e7f16c650b53"
     - chain-name: avalanche-mainnet
       url: https://api.avax.network/ext/bc/C/rpc
