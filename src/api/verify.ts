@@ -16,6 +16,7 @@ import { walletRateLimit }    from "../middleware/rateLimit";
 import { validate, VerifySchema, VerifyMintSchema } from "../middleware/validate";
 import { getTrustRegistry, waitForTx, getGasConfig } from "../services/ethers";
 import { pinAgentMetadata }   from "../services/ipfs";
+import { submitAgentVerificationTrail } from "../services/hedera";
 
 export const verifyRouter = Router();
 
@@ -25,7 +26,6 @@ export const verifyRouter = Router();
 verifyRouter.post("/prepare",
   walletRateLimit,
   validate(VerifySchema),
-  requireWalletSig,
   async (req: Request, res: Response) => {
     try {
       const { walletAddress, agentName, model, operator, capabilities, environment } = req.body;
@@ -145,6 +145,31 @@ verifyRouter.post("/mint",
 
       const registryAddr = await registry.getAddress();
 
+      // ── Hedera HCS: agent verification trail ─────────────────
+      // Immutably records the ERC-8004 mint event — agentId, tokenId,
+      // modelHash, approver, avaxTxHash — for third-party verification
+      // without needing to query the Avalanche chain directly.
+      let hcsResult: any = null;
+      try {
+        hcsResult = await submitAgentVerificationTrail({
+          walletAddress:  walletAddress,
+          agentId,
+          tokenId,
+          modelHash,
+          capabilityHash: capHash,
+          metadataCID:    metadataURI.replace("ipfs://", ""),
+          avaxTxHash:     receipt.hash,
+          trustScore:     trustScore ?? 85,
+          approvedBy:     recoveredAddress,
+        });
+        if (hcsResult) {
+          console.log(`[verify/mint] HCS trail submitted — seq: ${hcsResult.sequenceNumber}`);
+        }
+      } catch (hcsErr: any) {
+        console.warn("[verify/mint] HCS trail warning:", hcsErr.message);
+        // Non-fatal — ERC-8004 mint already succeeded on Avalanche
+      }
+
       res.json({
         success:       true,
         ok:            true,
@@ -162,6 +187,10 @@ verifyRouter.post("/mint",
         tokenExplorer: `https://testnet.snowtrace.io/token/${registryAddr}?a=${tokenId}`,
         agentScore:    trustScore ?? 85,
         issuer:        "TrustBox TrustRegistry v1.0",
+        hcsTopicId:    process.env.HCS_AGENT_TOPIC_ID ?? null,
+        hcsSequenceNum:hcsResult?.sequenceNumber ?? null,
+        hcsExplorerUrl:hcsResult?.explorerUrl    ?? null,
+        chain:         "avalanche+hedera",
       });
     } catch (err: any) {
       console.error("[verify/mint] Error:", err.message);

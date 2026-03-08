@@ -1,77 +1,98 @@
-/* services/chainlink.ts — TrustBox */
+/* services/chainlink.ts — TrustBox
+   Intent parsing via Groq (Llama 3.1 70B) — direct API call.
+   Previously used Chainlink Functions on-chain; replaced with
+   Groq for hackathon demo (no subscription/DON setup needed).
+   The parseIntent() signature is unchanged — execute.ts works as-is.
+   ─────────────────────────────────────────────────────────────── */
 
-import { ethers }  from "ethers"
-import { env }     from "../config/env"
-import { CONTRACTS, loadAbi } from "../config/chains"
-import * as fs     from "fs"
-import * as path   from "path"
+import { ethers } from "ethers"
+import { env }    from "../config/env"
 
 export const provider = new ethers.JsonRpcProvider(env.AVALANCHE_FUJI_RPC)
 export const signer   = new ethers.Wallet(env.DEPLOYER_PRIVATE_KEY, provider) as any
 
-function getConsumer() {
-  if (!CONTRACTS.functionsConsumer) throw new Error("FUNCTIONS_CONSUMER_ADDR not set in .env")
-  return new ethers.Contract(CONTRACTS.functionsConsumer, loadAbi("FunctionsConsumer"), signer)
-}
+// ── Groq API helper ───────────────────────────────────────────
+async function callGroq(prompt: string): Promise<string> {
+  const apiKey = env.GROQ_API_KEY
+  if (!apiKey) {
+    // Graceful fallback — return a deterministic demo spec so the UI still works
+    console.warn("[chainlink] GROQ_API_KEY not set — returning demo spec")
+    const demo = {
+      action: "generic",
+      entity: "demo-target",
+      params: { note: "Set GROQ_API_KEY on Render to enable real NL parsing", rawPrompt: prompt.slice(0, 80) }
+    }
+    return JSON.stringify(demo)
+  }
 
-function loadSource(): string {
-  const candidates = [
-    path.resolve(__dirname, "../../functions/source/parseIntent.js"),
-    path.resolve(__dirname, "../functions/source/parseIntent.js"),
-    path.resolve(process.cwd(), "functions/source/parseIntent.js"),
-  ]
-  for (const p of candidates) {
-    if (fs.existsSync(p)) return fs.readFileSync(p, "utf-8")
-  }
-  throw new Error("parseIntent.js not found")
-}
+  const res = await fetch("https://api.groq.com/openai/v1/chat/completions", {
+    method:  "POST",
+    headers: {
+      "Content-Type":  "application/json",
+      "Authorization": `Bearer ${apiKey}`,
+    },
+    body: JSON.stringify({
+      model:       "llama-3.1-70b-versatile",
+      temperature: 0,
+      max_tokens:  512,
+      messages: [
+        {
+          role:    "system",
+          content: [
+            "You are a structured intent parser for a Web3 agent platform.",
+            "Parse the user's natural language instruction into a JSON spec.",
+            "Return ONLY valid JSON — no markdown, no explanation, no backticks.",
+            "Schema: { \"action\": string, \"entity\": string, \"params\": object }",
+            "action must be one of: book_travel | defi_swap | contributor_tip | portfolio_rebalance | generic",
+            "entity is the target (hotel name, token symbol, contributor handle, etc.)",
+            "params contains all relevant numeric / string details extracted from the instruction.",
+          ].join(" "),
+        },
+        { role: "user", content: prompt },
+      ],
+    }),
+  })
 
-export async function sendParseRequest(nlText: string, category: string) {
-  const consumer  = getConsumer()
-  const source    = loadSource()
-  const feeData   = await provider.getFeeData()
-  const gasConfig = {
-    maxFeePerGas:         feeData.maxFeePerGas         ?? ethers.parseUnits("30", "gwei"),
-    maxPriorityFeePerGas: feeData.maxPriorityFeePerGas ?? ethers.parseUnits("2",  "gwei"),
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Groq API error ${res.status}: ${err}`)
   }
-  const tx      = await consumer.sendParseRequest(source, [encodeURIComponent(nlText), category], "0x", gasConfig)
-  const receipt = await tx.wait(1)
-  let requestId = ""
-  for (const log of receipt.logs) {
-    try {
-      const parsed = consumer.interface.parseLog(log)
-      if (parsed?.name === "RequestSent") requestId = parsed.args.requestId
-    } catch { /* skip */ }
-  }
-  return { requestId, txHash: receipt.hash }
-}
 
-export async function pollForResult(requestId: string, timeoutMs = 120_000) {
-  const consumer  = getConsumer()
-  const startTime = Date.now()
-  while (Date.now() - startTime < timeoutMs) {
-    const spec  = await consumer.getSpec(requestId)
-    const error = await consumer.getError(requestId)
-    if (spec && spec !== "") return { specJson: spec, error: null }
-    if (error && error !== "0x") return { specJson: "", error: Buffer.from(error.slice(2), "hex").toString() }
-    await new Promise(r => setTimeout(r, 3000))
-  }
-  throw new Error(`Chainlink Functions timeout for requestId: ${requestId}`)
+  const data = await res.json() as any
+  const text  = data.choices?.[0]?.message?.content ?? ""
+
+  // Strip any accidental markdown fences
+  return text.replace(/```json|```/gi, "").trim()
 }
 
 // ── parseIntent — returns { specJson, specHash, requestId } ──
-// This matches what execute.ts destructures
+// Signature unchanged from the Chainlink Functions version so
+// execute.ts works without modification.
 export async function parseIntent(nlText: string, category: string): Promise<{
   specJson:  string
   specHash:  string
   requestId: string
 }> {
-  const { ethers: eth } = await import("ethers")
-  const { requestId }   = await sendParseRequest(nlText, category)
-  const { specJson, error } = await pollForResult(requestId)
-  if (error) throw new Error(`Chainlink Functions error: ${error}`)
-  const specHash = eth.id(specJson)
+  const prompt   = `Category: ${category}\nInstruction: ${nlText}`
+  let   specJson = await callGroq(prompt)
+
+  // Validate JSON — fall back to safe default if Groq returns garbage
+  try {
+    JSON.parse(specJson)
+  } catch {
+    console.warn("[chainlink] Groq returned non-JSON, using fallback spec")
+    specJson = JSON.stringify({
+      action: "generic",
+      entity: nlText.slice(0, 40),
+      params: { rawInstruction: nlText, category },
+    })
+  }
+
+  const specHash  = ethers.id(specJson)
+  const requestId = `groq-${Date.now()}` // synthetic request ID — no on-chain tx needed
+
   return { specJson, specHash, requestId }
 }
 
+// Keep old export name for any other callers
 export const parseIntentViaChainlink = parseIntent
