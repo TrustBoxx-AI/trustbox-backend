@@ -54,8 +54,18 @@ async function callGroq(prompt: string): Promise<string> {
   })
 
   if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Groq API error ${res.status}: ${err}`)
+    const errText = await res.text()
+    // On auth errors fall back to demo spec rather than crashing the endpoint
+    if (res.status === 401 || res.status === 403) {
+      console.warn(`[chainlink] Groq auth error ${res.status} — returning demo spec. Check GROQ_API_KEY on Render.`)
+      const demo = {
+        action: "book_travel",
+        entity: "hotel",
+        params: { note: "Groq API key invalid — update GROQ_API_KEY on Render", rawPrompt: prompt.slice(0, 80) }
+      }
+      return JSON.stringify(demo)
+    }
+    throw new Error(`Groq API error ${res.status}: ${errText}`)
   }
 
   const data = await res.json() as any
