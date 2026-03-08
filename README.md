@@ -1,0 +1,283 @@
+# TrustBox AI — Trustworthy AI Agent Infrastructure
+
+> **Verifiable AI agent credentials, human-in-the-loop audits, and ZK credit scoring — anchored on Avalanche and Hedera.**
+
+## What is TrustBox?
+
+TrustBox is a decentralised trust infrastructure for AI agents. As AI agents become more autonomous — executing DeFi trades, managing wallets, auditing contracts — there is no standard way to verify what model they run, who operates them, or whether their outputs have been reviewed by a human.
+
+TrustBox solves this with six verifiable trust workflows, each cryptographically anchored across Avalanche and Hedera.
+
+---
+
+## Live Deployments
+
+| Service | URL |
+|---|---|
+| Frontend | https://trustbox-ai.vercel.app |
+| Backend API | https://trustbox-backend-kxkr.onrender.com |
+| Health Check | https://trustbox-backend-kxkr.onrender.com/health |
+
+---
+
+## Smart Contracts — Avalanche Fuji (chainId: 43113)
+
+| Contract | Address | Purpose |
+|---|---|---|
+| TrustRegistry | `0x8A24ea199EAAbc8AAcb7cb92660FD20a2BA2552A` | ERC-8004 AI agent credential NFTs |
+| AuditRegistry | `0x62e2Ba19a38AcA58B829aEC3ED8Db9bfd89D5Fd3` | HITL audit anchoring + Merkle proofs |
+| AgentMarketplace | `0x12d7ef9627d0F4c6C6e0EB85A4D6388cee5d91c2` | Agent staking + TEE job dispatch |
+| IntentVault | `0xB9aE50f6989574504e6CA465283BaD9570944B67` | NL intent storage + signature verification |
+
+---
+
+## Hedera Infrastructure
+
+| Resource | ID |
+|---|---|
+| Operator Account | `0.0.8064612` |
+| HCS-10 Inbox Topic | `0.0.8127186` |
+| HCS-10 Outbox Topic | `0.0.8127187` |
+| Credit Credential Token | TBCC (HTS NFT) |
+
+---
+
+## The Six Workflows
+
+### 1. ZK Credit Score
+Raw score never leaves the browser. `snarkjs` generates a Groth16 proof the score falls within a band (Poor/Fair/Good/Excellent). Backend verifies, pins ZK receipt to IPFS, submits HCS message to Hedera, mints TBCC HTS NFT.
+
+**Chains:** Hedera HCS + HTS
+
+### 2. Smart Contract Audit (Human-in-the-Loop)
+**Phase 1:** Groq Llama 3.1 70B analyses the contract — structured findings with severity, title, detail, line, remediation. Merkle tree computed. Nothing on-chain yet.
+
+**Phase 2:** Auditor reviews, signs `reportHash` via MetaMask (proves human review). `AuditRegistry.submitAudit()` called with signature + Merkle root + IPFS CID. HCS trail written to Hedera.
+
+**Chains:** Avalanche Fuji + Hedera HCS + IPFS
+
+### 3. Blind TEE Audit
+Code analysed inside Phala Network SGX enclave. Even TrustBox cannot see the raw source. Attestation quote verified and pinned to IPFS.
+
+**Chains:** Phala TEE + Avalanche
+
+### 4. Execute Intent (NL → On-Chain)
+User types natural language. Groq parses to structured JSON spec. User signs `specHash` — not raw text — blocking prompt injection. Submitted to `IntentVault.sol`. Chainlink Automation triggers execution. HCS trail written.
+
+**Chains:** Avalanche + Hedera HCS + Chainlink Automation
+
+### 5. Verify AI Agent (ERC-8004)
+ERC-8004 credential NFT minted on `TrustRegistry.sol` binding agent ID, model hash, capability hash, operator address, and IPFS metadata CID. On-chain proof of what model the agent runs.
+
+**Chains:** Avalanche TrustRegistry
+
+### 6. Security Agent Scan
+Behavioural analysis across five categories. Agent registered on `AgentMarketplace.sol` with AVAX stake before marketplace listing.
+
+**Chains:** Avalanche AgentMarketplace
+
+---
+
+## Architecture
+
+```
+┌──────────────────────────────────────────────────────┐
+│                  Frontend (Vercel)                   │
+│           React 18 + TypeScript + MetaMask           │
+└──────────────────────┬───────────────────────────────┘
+                       │ HTTPS / REST
+┌──────────────────────▼───────────────────────────────┐
+│                 Backend (Render)                     │
+│               Express + TypeScript                   │
+│                                                      │
+│  /api/auth       EIP-191 wallet auth → JWT           │
+│  /api/score      ZK proof verify + Hedera HCS        │
+│  /api/audit      HITL audit + AuditRegistry.sol      │
+│  /api/verify     ERC-8004 mint + TrustRegistry.sol   │
+│  /api/intent     NL parse + IntentVault.sol          │
+│  /api/scan       Behavioural + AgentMarketplace.sol  │
+│  /api/blindaudit Phala TEE blind audit               │
+│  /api/history    Activity log (in-memory / Supabase) │
+└──────┬────────┬────────┬────────┬────────┬───────────┘
+       │        │        │        │        │
+   Avalanche  Hedera   Groq    Pinata   Phala
+   Fuji RPC   HCS/HTS  API     IPFS     TEE
+```
+
+---
+
+## Tech Stack
+
+| Layer | Technology |
+|---|---|
+| Frontend | React 18, TypeScript, Vite |
+| Backend | Node.js, Express, TypeScript |
+| Blockchain | Solidity 0.8.20, ethers.js v6 |
+| AI Engine | Groq API — Llama 3.1 70B |
+| ZK Proofs | snarkjs — Groth16 / BN128 |
+| Storage | IPFS via Pinata |
+| Hedera | @hashgraph/sdk — HCS + HTS |
+| TEE | Phala Network |
+| Automation | Chainlink Automation |
+| Auth | EIP-191 signatures + JWT |
+| Hosting | Vercel (frontend) + Render (backend) |
+
+---
+
+## Running Locally
+
+### Prerequisites
+- Node.js 18+
+- MetaMask with Avalanche Fuji (chainId: 43113, RPC: `https://api.avax-test.network/ext/bc/C/rpc`)
+- Test AVAX from https://faucet.avax.network
+
+### Backend
+```bash
+cd trustbox-backend
+npm install
+cp .env.example .env   # Fill in required vars below
+npm run dev            # Starts on port 4000
+```
+
+### Frontend
+```bash
+cd trustbox-frontend
+npm install
+npm run dev            # Opens http://localhost:5173
+```
+
+### Required Environment Variables
+```env
+AVALANCHE_FUJI_RPC=https://api.avax-test.network/ext/bc/C/rpc
+DEPLOYER_PRIVATE_KEY=0x...
+JWT_SECRET=min-16-chars
+GROQ_API_KEY=gsk_...
+
+TRUST_REGISTRY_ADDR=0x8A24ea199EAAbc8AAcb7cb92660FD20a2BA2552A
+AUDIT_REGISTRY_ADDR=0x62e2Ba19a38AcA58B829aEC3ED8Db9bfd89D5Fd3
+AGENT_MARKETPLACE_ADDR=0x12d7ef9627d0F4c6C6e0EB85A4D6388cee5d91c2
+INTENT_VAULT_ADDR=0xB9aE50f6989574504e6CA465283BaD9570944B67
+
+# Optional — falls back to demo/stub mode if not set
+HEDERA_OPERATOR_ID=0.0.8064612
+HEDERA_OPERATOR_KEY=your-ecdsa-hex-key
+PINATA_JWT=your-pinata-jwt
+SUPABASE_URL=https://your-project.supabase.co
+SUPABASE_SERVICE_KEY=your-service-key
+```
+
+---
+
+## Setup Scripts
+
+```bash
+# Run with:
+npx ts-node --transpile-only scripts/utils/<script>.ts
+
+# Available scripts:
+scripts/utils/createHcsTopics.ts       # Create 4 HCS topics on Hedera
+scripts/utils/createHtsToken.ts        # Create TBCC HTS NFT collection
+scripts/utils/addAuditor.ts            # Authorise backend signer on AuditRegistry
+scripts/utils/registerHOLAgent.ts      # Register on HOL Agent Registry
+scripts/utils/generateZkArtifacts.ts  # Generate ZK artifacts (Windows-compatible)
+```
+
+---
+
+## API Reference
+
+| Method | Endpoint | Description |
+|---|---|---|
+| POST | `/api/auth/login` | Wallet signature → JWT |
+| GET | `/api/auth/me` | Current user + dashboard stats |
+| POST | `/api/audit/prepare` | Phase 1: AI analysis → findings (no chain write) |
+| POST | `/api/audit` | Phase 2: anchor HITL-approved audit on-chain |
+| POST | `/api/intent/parse` | NL text → structured JSON spec |
+| POST | `/api/intent/submit` | Signed spec → IntentVault + HCS |
+| POST | `/api/verify/prepare` | Compute agent hashes + pin metadata |
+| POST | `/api/verify/mint` | Mint ERC-8004 credential NFT |
+| POST | `/api/score` | Verify ZK proof + Hedera HCS + HTS mint |
+| POST | `/api/scan` | Behavioural scan + AgentMarketplace registration |
+| POST | `/api/blindaudit` | Phala TEE blind audit |
+| GET | `/api/history/dashboard` | Activity summary |
+| GET | `/api/history/audits` | Audit history |
+| GET | `/api/history/intents` | Intent history |
+| GET | `/api/history/agents` | Agent NFT history |
+| GET | `/health` | Server health check |
+
+---
+
+## Security Design
+
+- **EIP-191 signatures** on all state-changing endpoints — backend verifies recovered address matches sender
+- **HITL enforcement** — `auditorSig` stored on-chain, proving a human reviewed AI findings before anchoring
+- **Spec hash signing** — users sign `specHash` not raw NL text, blocking prompt injection attacks
+- **Merkle proof of findings** — post-approval tampering is cryptographically detectable
+- **ZK privacy** — raw credit score never transmitted, only band membership proven via Groth16
+- **JWT auth** — 7-day TTL, wallet-bound, stateless — no session storage
+- **Rate limiting** — all API routes via express-rate-limit
+
+---
+
+## Hackathon Track Alignment
+
+**Avalanche** — 4 contracts deployed on Fuji. TrustRegistry implements the emerging ERC-8004 AI agent credential standard. All transactions verifiable on Snowtrace.
+
+**Hedera** — HCS topics for immutable audit trails. HCS-10 standard compliance with inbox/outbox topics. TBCC HTS NFT for ZK credit credentials. Every action produces a HashScan-verifiable sequence number.
+
+**Chainlink** — Automation integrated in IntentVault for automated execution triggers. Architecture ready for VRF-based agent selection.
+
+**Groq / AI** — Llama 3.1 70B used for contract security analysis (4–6 structured findings with severity + remediation) and NL intent parsing. HITL pattern ensures AI outputs are human-approved before on-chain anchoring.
+
+---
+
+## License
+
+MIT — Built for the hackathon, March 2026.
+
+---
+
+*TrustBox AI — Making AI agents trustworthy, verifiable, and accountable.*
+*Built on Avalanche | Secured by Hedera | Automated by Chainlink | Powered by Groq*
+
+---
+
+## Chainlink Integration
+
+> This section satisfies the hackathon requirement: *README must link to all files that use Chainlink.*
+
+**Replace `YOUR_ORG/trustbox-backend` and `YOUR_ORG/trustbox-frontend` with your actual GitHub repo names before submission.**
+
+### Backend — files that use Chainlink
+
+| File | Chainlink feature | Link |
+|---|---|---|
+| `src/services/chainlink.ts` | **Core integration** — Chainlink Functions (`parseIntent` via DON), Price Feeds (AVAX/USD, ETH/USD, BTC/USD via `latestRoundData()`), SecretsManager for DON-hosted encrypted secrets | [view](https://github.com/trustboxx-ai/trustbox-backend/src/services/chainlink.ts) |
+| `src/api/execute.ts` | Imports `parseIntent` from chainlink.ts — `POST /api/intent/parse` triggers a Chainlink Functions request; `POST /api/intent/submit` registers an Automation upkeep and awaits the `performUpkeep()` callback | [view](https://github.com/trustboxx-ai/trustbox-backend/src/api/execute.ts) |
+| `src/config/env.ts` | Declares all Chainlink env vars — `CHAINLINK_SUBSCRIPTION_ID`, `CHAINLINK_DON_ID`, `CHAINLINK_ROUTER`, `CHAINLINK_LINK_TOKEN`, `CHAINLINK_AUTOMATION_REGISTRY`, `CHAINLINK_UPKEEP_ID`, `CHAINLINK_SECRETS_VERSION` | [view](https://github.com/trustboxx-ai/trustbox-backend/src/config/env.ts) |
+| `src/index.ts` | Exports the `CHAINLINK` config object (router address, DON ID, price feed addresses, subscription ID, upkeep ID) used across services | [view](https://github.com/YOUR_ORG/trustbox-backend/blob/main/src/index.ts) |
+
+### Frontend — files that use Chainlink
+
+| File | Chainlink feature | Link |
+|---|---|---|
+| `src/constants.ts` | Execute Intent entity config — sets `badge: "Chainlink"`, `chain: "Chainlink"`, and includes Chainlink in the chain pill display for the intent workflow | [view](https://github.com/trustboxx-ai/trustbox-frontend/src/constants.ts) |
+| `src/components/Dashboard.tsx` | Renders `ChainPill` with Chainlink label and colour (`#375BD2`) in the Execute Intent results drawer | [view](https://github.com/trustboxx-ai/trustbox-frontend/src/components/Dashboard.tsx) |
+| `src/components/Landing.tsx` | Landing page describes Chainlink Automation + Price Feeds in the intent execution feature card; displays Chainlink logo badge | [view](https://github.com/trustboxx-ai/trustbox-frontend/src/components/Landing.tsx) |
+
+### Smart Contract — Chainlink Automation
+
+| File | Chainlink feature | Link |
+|---|---|---|
+| `contracts/IntentVault.sol` | Implements `AutomationCompatibleInterface` — `checkUpkeep()` polls for pending intents, `performUpkeep()` executes approved intent specs | [view](https://github.com/trustbox-backend/contracts/evm/src/IntentVault.sol) |
+
+### What each Chainlink product does in TrustBox
+
+**Chainlink Functions** (`chainlink.ts`, `execute.ts`)
+Natural language intent text is sent to a Chainlink Functions request on the Avalanche Fuji DON. A JavaScript source file (`functions/source/parseIntent.js`) running inside the DON calls the Groq API and returns a structured JSON spec. The result is fulfilled back to `FunctionsConsumer.sol` via the `IntentParsed` event, which the backend listens for with a 90-second timeout.
+
+**Chainlink Automation** (`execute.ts`, `IntentVault.sol`)
+After an intent spec is submitted to `IntentVault.sol`, Chainlink Automation monitors `checkUpkeep()`. When a pending intent is found, `performUpkeep()` is called to execute it on-chain. The backend registers and funds an upkeep via the Automation Registry (`0x819B58A646CDd8289275A87653a2aA4902b14fe6` on Fuji).
+
+**Chainlink Price Feeds** (`chainlink.ts`)
+`getAvaxUsdPrice()`, `getEthUsdPrice()`, and `getBtcUsdPrice()` read from Fuji Price Feed contracts via `latestRoundData()`. Answers are validated for staleness (>1 hour) and zero/negative values before use.
