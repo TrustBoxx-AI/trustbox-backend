@@ -6,9 +6,13 @@
 import { createClient } from "@supabase/supabase-js"
 import { env }          from "../config/env"
 
+// Supabase is optional — gracefully degrade if not configured
+const SUPABASE_URL         = env.SUPABASE_URL         ?? ""
+const SUPABASE_SERVICE_KEY = env.SUPABASE_SERVICE_KEY ?? ""
+
 export const supabase = createClient(
-  env.SUPABASE_URL,
-  env.SUPABASE_SERVICE_KEY,
+  SUPABASE_URL,
+  SUPABASE_SERVICE_KEY,
   { auth: { persistSession: false } }
 )
 

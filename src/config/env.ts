@@ -62,6 +62,10 @@ const EnvSchema = z.object({
   FUNCTIONS_CONSUMER_TENDERLY_ADDR:z.string().optional(),
   HTS_CREDIT_TOKEN_ID: z.string().optional(),
 
+  // Supabase
+  SUPABASE_URL:         z.string().url().optional(),
+  SUPABASE_SERVICE_KEY: z.string().optional(),
+
   // APIs
   GROQ_API_KEY:     z.string().optional(),
   PINATA_JWT:       z.string().optional(),
