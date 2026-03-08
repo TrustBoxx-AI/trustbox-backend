@@ -217,20 +217,6 @@ scripts/utils/generateZkArtifacts.ts  # Generate ZK artifacts (Windows-compatibl
 - **JWT auth** — 7-day TTL, wallet-bound, stateless — no session storage
 - **Rate limiting** — all API routes via express-rate-limit
 
----
-
-## Hackathon Track Alignment
-
-**Avalanche** — 4 contracts deployed on Fuji. TrustRegistry implements the emerging ERC-8004 AI agent credential standard. All transactions verifiable on Snowtrace.
-
-**Hedera** — HCS topics for immutable audit trails. HCS-10 standard compliance with inbox/outbox topics. TBCC HTS NFT for ZK credit credentials. Every action produces a HashScan-verifiable sequence number.
-
-**Chainlink** — Automation integrated in IntentVault for automated execution triggers. Architecture ready for VRF-based agent selection.
-
-**Groq / AI** — Llama 3.1 70B used for contract security analysis (4–6 structured findings with severity + remediation) and NL intent parsing. HITL pattern ensures AI outputs are human-approved before on-chain anchoring.
-
----
-
 ## License
 
 MIT — Built for the hackathon, March 2026.
