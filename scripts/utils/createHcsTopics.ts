@@ -1,98 +1,103 @@
-/**
- * scripts/utils/createHcsTopics.ts
- * ──────────────────────────────────
- * Creates Hedera HCS topics for TrustBox and saves topic IDs to .env
- *
- * Run once:
- *   ts-node scripts/utils/createHcsTopics.ts
- *
- * Prerequisites in .env:
- *   HEDERA_OPERATOR_ID=0.0.xxxxxx
- *   HEDERA_OPERATOR_KEY=302e...
- */
+/* scripts/utils/createHcsTopics.ts — TrustBox
+   Creates all 4 HCS topics needed for TrustBox.
+   Run once: npx ts-node scripts/utils/createHcsTopics.ts
+   ───────────────────────────────────────────────────── */
 
-import * as dotenv from "dotenv"
-import * as fs     from "fs"
-import * as path   from "path"
-dotenv.config()
+import * as dotenv from "dotenv";
+dotenv.config();
 
-async function main() {
-  const operatorId  = process.env.HEDERA_OPERATOR_ID
-  const operatorKey = process.env.HEDERA_OPERATOR_KEY
+async function getClient() {
+  const { Client, AccountId, PrivateKey } = await import("@hashgraph/sdk");
+
+  const operatorId  = process.env.HEDERA_OPERATOR_ID;
+  const operatorKey = process.env.HEDERA_OPERATOR_KEY;
 
   if (!operatorId || !operatorKey) {
-    console.error("❌ HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY must be set in .env")
-    console.error("   Get a free testnet account at: https://portal.hedera.com")
-    process.exit(1)
+    throw new Error("HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY must be set in .env");
   }
 
-  const {
-    Client,
-    AccountId,
-    PrivateKey,
-    TopicCreateTransaction,
-  } = await import("@hashgraph/sdk")
+  // Auto-detect key format
+  const raw = operatorKey.trim();
+  let privateKey: any;
 
-  const client = Client.forTestnet()
-  client.setOperator(
-    AccountId.fromString(operatorId),
-    PrivateKey.fromString(operatorKey)
-  )
+  if (raw.startsWith("302e") || raw.startsWith("3026") ||
+      raw.startsWith("3030") || raw.startsWith("3077")) {
+    // DER-encoded (ED25519 or ECDSA)
+    privateKey = PrivateKey.fromStringDer(raw);
+  } else if (raw.startsWith("0x")) {
+    // EVM-style hex (strip 0x)
+    privateKey = PrivateKey.fromStringECDSA(raw.slice(2));
+  } else if (raw.length === 64) {
+    // Raw 32-byte hex — try ECDSA first (Hedera Portal default), then ED25519
+    try { privateKey = PrivateKey.fromStringECDSA(raw); }
+    catch { privateKey = PrivateKey.fromStringED25519(raw); }
+  } else {
+    // Fallback — let SDK figure it out
+    privateKey = PrivateKey.fromString(raw);
+  }
 
-  console.log("═══════════════════════════════════════════════════")
-  console.log("  TrustBox — Hedera HCS Topic Creation")
-  console.log("  Operator:", operatorId)
-  console.log("═══════════════════════════════════════════════════\n")
+  const client = Client.forTestnet();
+  client.setOperator(AccountId.fromString(operatorId), privateKey);
+  return client;
+}
 
-  const topics: Record<string, string> = {}
+async function createTopic(client: any, memo: string): Promise<string> {
+  const { TopicCreateTransaction } = await import("@hashgraph/sdk");
+
+  const tx = await new TopicCreateTransaction()
+    .setTopicMemo(memo)
+    .setSubmitKey((await import("@hashgraph/sdk")).PrivateKey.fromString(
+      process.env.HEDERA_OPERATOR_KEY!
+    ).publicKey)
+    .execute(client);
+
+  const receipt = await tx.getReceipt(client);
+  return receipt.topicId!.toString();
+}
+
+async function main() {
+  console.log("═══════════════════════════════════════════════════");
+  console.log("  TrustBox — Hedera HCS Topic Creation");
+  console.log(`  Operator: ${process.env.HEDERA_OPERATOR_ID}`);
+  console.log("═══════════════════════════════════════════════════\n");
+
+  const client = await getClient();
+
+  const topics: Record<string, string> = {};
 
   const toCreate = [
-    { key: "HCS_CREDIT_TOPIC_ID",  memo: "TrustBox Credit Score Trail"     },
-    { key: "HCS_INTENT_TOPIC_ID",  memo: "TrustBox Intent Execution Trail"  },
-  ]
+    { key: "HCS_CREDIT_TOPIC_ID",  memo: "TrustBox Credit Score Trail"       },
+    { key: "HCS_AUDIT_TOPIC_ID",   memo: "TrustBox Audit Trail"               },
+    { key: "HCS_INTENT_TOPIC_ID",  memo: "TrustBox Intent Execution Trail"    },
+    { key: "HCS_AGENT_TOPIC_ID",   memo: "TrustBox Agent Verification Trail"  },
+  ];
 
   for (const { key, memo } of toCreate) {
-    console.log(`📝 Creating topic: ${memo}...`)
-
-    const tx = await new TopicCreateTransaction()
-      .setTopicMemo(memo)
-      .setAdminKey(PrivateKey.fromString(operatorKey))
-      .setSubmitKey(PrivateKey.fromString(operatorKey))
-      .execute(client)
-
-    const receipt = await tx.getReceipt(client)
-    const topicId = receipt.topicId!.toString()
-
-    topics[key] = topicId
-    console.log(`  ✅ ${key} = ${topicId}`)
-    console.log(`     Explorer: https://hashscan.io/testnet/topic/${topicId}`)
-  }
-
-  // ── Update .env file ──────────────────────────────────────
-  const envPath    = path.resolve(__dirname, "../../.env")
-  let   envContent = fs.readFileSync(envPath, "utf-8")
-
-  for (const [key, value] of Object.entries(topics)) {
-    const regex = new RegExp(`^${key}=.*$`, "m")
-    if (regex.test(envContent)) {
-      envContent = envContent.replace(regex, `${key}=${value}`)
-    } else {
-      envContent += `\n${key}=${value}`
+    process.stdout.write(`📝 Creating topic: ${memo}... `);
+    try {
+      const topicId = await createTopic(client, memo);
+      topics[key] = topicId;
+      console.log(`✅ ${topicId}`);
+    } catch (err: any) {
+      console.log(`❌ ${err.message}`);
+      process.exit(1);
     }
   }
 
-  fs.writeFileSync(envPath, envContent)
-  console.log("\n  ✅ .env updated with topic IDs")
+  console.log("\n═══════════════════════════════════════════════════");
+  console.log("  Add these to your .env and Render environment:");
+  console.log("═══════════════════════════════════════════════════");
+  for (const [key, val] of Object.entries(topics)) {
+    console.log(`${key}=${val}`);
+  }
 
-  console.log("\n═══════════════════════════════════════════════════")
-  console.log("  ✅ HCS topics created!")
-  Object.entries(topics).forEach(([k, v]) => console.log(`  ${k} = ${v}`))
-  console.log("═══════════════════════════════════════════════════\n")
+  console.log("\n  Also add to Render → Environment → Add Variable");
+  console.log("═══════════════════════════════════════════════════\n");
 
-  client.close()
+  client.close();
 }
 
 main().catch(err => {
-  console.error("❌ Failed:", err.message)
-  process.exit(1)
-})
+  console.error("❌ Failed:", err.message);
+  process.exit(1);
+});

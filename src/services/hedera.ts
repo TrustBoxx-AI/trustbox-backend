@@ -18,9 +18,21 @@ async function getClient(): Promise<any> {
   if (!_client) {
     const { Client, AccountId, PrivateKey } = await import("@hashgraph/sdk");
     _client = Client.forTestnet();
+    // Auto-detect key format to avoid INVALID_SIGNATURE
+    const rawKey = HEDERA_CONFIG.operatorKey!;
+    let privateKey: any;
+    if (rawKey.startsWith("302e") || rawKey.startsWith("3026") ||
+        rawKey.startsWith("3030") || rawKey.startsWith("3077")) {
+      privateKey = PrivateKey.fromStringDer(rawKey);
+    } else if (rawKey.startsWith("0x")) {
+      privateKey = PrivateKey.fromStringECDSA(rawKey.slice(2));
+    } else {
+      try { privateKey = PrivateKey.fromStringECDSA(rawKey); }
+      catch { privateKey = PrivateKey.fromStringED25519(rawKey); }
+    }
     _client.setOperator(
       AccountId.fromString(HEDERA_CONFIG.operatorId),
-      PrivateKey.fromString(HEDERA_CONFIG.operatorKey)
+      privateKey
     );
     // Increase timeout for Render cold-start latency
     _client.setRequestTimeout(30_000);

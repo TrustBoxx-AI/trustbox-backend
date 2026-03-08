@@ -18,6 +18,7 @@
     "@chainlink/contracts": "^1.2.0",
     "@chainlink/functions-toolkit": "^0.3.2",
     "@hashgraph/sdk": "^2.46.0",
+    "@hashgraphonline/standards-sdk": "^0.1.165",
     "@openzeppelin/contracts": "^5.6.1",
     "@supabase/supabase-js": "^2.98.0",
     "bcrypto": "^5.5.2",

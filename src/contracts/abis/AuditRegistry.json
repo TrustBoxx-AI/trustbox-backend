@@ -1,0 +1,149 @@
+[
+  {
+    "type": "constructor",
+    "inputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "event",
+    "name": "AuditSubmitted",
+    "anonymous": false,
+    "inputs": [
+      { "name": "auditId",      "type": "uint256", "indexed": true,  "internalType": "uint256" },
+      { "name": "contractAddr", "type": "address", "indexed": true,  "internalType": "address" },
+      { "name": "reportHash",   "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "merkleRoot",   "type": "bytes32", "indexed": false, "internalType": "bytes32" },
+      { "name": "reportCID",    "type": "string",  "indexed": false, "internalType": "string"  },
+      { "name": "auditor",      "type": "address", "indexed": true,  "internalType": "address" },
+      { "name": "score",        "type": "uint256", "indexed": false, "internalType": "uint256" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "AuditorAdded",
+    "anonymous": false,
+    "inputs": [
+      { "name": "auditor", "type": "address", "indexed": true, "internalType": "address" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "AuditorRemoved",
+    "anonymous": false,
+    "inputs": [
+      { "name": "auditor", "type": "address", "indexed": true, "internalType": "address" }
+    ]
+  },
+  {
+    "type": "event",
+    "name": "OwnershipTransferred",
+    "anonymous": false,
+    "inputs": [
+      { "name": "previousOwner", "type": "address", "indexed": true, "internalType": "address" },
+      { "name": "newOwner",      "type": "address", "indexed": true, "internalType": "address" }
+    ]
+  },
+  {
+    "type": "function",
+    "name": "addAuditor",
+    "inputs": [{ "name": "auditor", "type": "address", "internalType": "address" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "removeAuditor",
+    "inputs": [{ "name": "auditor", "type": "address", "internalType": "address" }],
+    "outputs": [],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "authorisedAuditors",
+    "inputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "submitAudit",
+    "inputs": [
+      { "name": "contractAddr", "type": "address", "internalType": "address" },
+      { "name": "reportHash",   "type": "bytes32", "internalType": "bytes32" },
+      { "name": "merkleRoot",   "type": "bytes32", "internalType": "bytes32" },
+      { "name": "reportCID",    "type": "string",  "internalType": "string"  },
+      { "name": "auditorSig",   "type": "bytes",   "internalType": "bytes"   },
+      { "name": "score",        "type": "uint256", "internalType": "uint256" }
+    ],
+    "outputs": [{ "name": "auditId", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "nonpayable"
+  },
+  {
+    "type": "function",
+    "name": "getAudit",
+    "inputs": [{ "name": "contractAddr", "type": "address", "internalType": "address" }],
+    "outputs": [
+      {
+        "name":         "",
+        "type":         "tuple",
+        "internalType": "struct AuditRegistry.AuditRecord",
+        "components": [
+          { "name": "auditId",    "type": "uint256", "internalType": "uint256" },
+          { "name": "reportHash", "type": "bytes32", "internalType": "bytes32" },
+          { "name": "merkleRoot", "type": "bytes32", "internalType": "bytes32" },
+          { "name": "reportCID",  "type": "string",  "internalType": "string"  },
+          { "name": "score",      "type": "uint256", "internalType": "uint256" },
+          { "name": "auditor",    "type": "address", "internalType": "address" },
+          { "name": "timestamp",  "type": "uint256", "internalType": "uint256" }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "getAuditHistory",
+    "inputs": [{ "name": "contractAddr", "type": "address", "internalType": "address" }],
+    "outputs": [
+      {
+        "name":         "",
+        "type":         "tuple[]",
+        "internalType": "struct AuditRegistry.AuditRecord[]",
+        "components": [
+          { "name": "auditId",    "type": "uint256", "internalType": "uint256" },
+          { "name": "reportHash", "type": "bytes32", "internalType": "bytes32" },
+          { "name": "merkleRoot", "type": "bytes32", "internalType": "bytes32" },
+          { "name": "reportCID",  "type": "string",  "internalType": "string"  },
+          { "name": "score",      "type": "uint256", "internalType": "uint256" },
+          { "name": "auditor",    "type": "address", "internalType": "address" },
+          { "name": "timestamp",  "type": "uint256", "internalType": "uint256" }
+        ]
+      }
+    ],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "verifyReport",
+    "inputs": [
+      { "name": "contractAddr", "type": "address", "internalType": "address" },
+      { "name": "reportHash",   "type": "bytes32", "internalType": "bytes32" }
+    ],
+    "outputs": [{ "name": "", "type": "bool", "internalType": "bool" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "totalAudits",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "uint256", "internalType": "uint256" }],
+    "stateMutability": "view"
+  },
+  {
+    "type": "function",
+    "name": "owner",
+    "inputs": [],
+    "outputs": [{ "name": "", "type": "address", "internalType": "address" }],
+    "stateMutability": "view"
+  }
+]

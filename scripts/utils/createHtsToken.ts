@@ -1,58 +1,131 @@
-/* scripts/utils/createHtsToken.ts
-   One-time script to create the TrustBox Credit HTS NFT token on Hedera Testnet.
-   Run once before Session 8 testing.
-   Run: npx ts-node scripts/utils/createHtsToken.ts
-   ──────────────────────────────────────────────────────────────────────────── */
+/**
+ * scripts/utils/createHtsToken.ts — TrustBox
+ * ─────────────────────────────────────────────
+ * Creates the HTS NFT collection for TrustBox credit credentials.
+ * Run ONCE after portal.hedera.com account setup.
+ *
+ *   ts-node scripts/utils/createHtsToken.ts
+ *
+ * Prerequisites in .env:
+ *   HEDERA_OPERATOR_ID=0.0.xxxxxx
+ *   HEDERA_OPERATOR_KEY=302e020100300506032b657004220420...
+ *
+ * What it creates:
+ *   - HTS Non-Fungible Token (NFT) collection
+ *     name:        "TrustBox Credit Credential"
+ *     symbol:      "TBCC"
+ *     maxSupply:   unlimited (for testnet)
+ *     treasury:    operator account
+ *     adminKey:    operator key  (allows future updates)
+ *     supplyKey:   operator key  (required to mint serials)
+ *     kycKey:      none          (no KYC requirement)
+ *     freezeKey:   none
+ *
+ * After running:
+ *   - HTS_CREDIT_TOKEN_ID is written to .env automatically
+ *   - Verify on HashScan: https://hashscan.io/testnet/token/<id>
+ */
 
-import {
-  Client,
-  AccountId,
-  PrivateKey,
-  TokenCreateTransaction,
-  TokenType,
-  TokenSupplyType,
-  Hbar,
-} from "@hashgraph/sdk";
 import * as dotenv from "dotenv";
+import * as fs     from "fs";
+import * as path   from "path";
 dotenv.config();
 
 async function main() {
-  const operatorId  = process.env.HEDERA_OPERATOR_ID!;
-  const operatorKey = process.env.HEDERA_OPERATOR_KEY!;
+  const operatorId  = process.env.HEDERA_OPERATOR_ID;
+  const operatorKey = process.env.HEDERA_OPERATOR_KEY;
 
   if (!operatorId || !operatorKey) {
-    console.error("\n❌  HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY must be set in .env\n");
+    console.error("❌  HEDERA_OPERATOR_ID and HEDERA_OPERATOR_KEY must be set in .env");
+    console.error("    Get a free testnet account at: https://portal.hedera.com");
     process.exit(1);
   }
 
-  const client = Client.forTestnet();
-  client.setOperator(AccountId.fromString(operatorId), PrivateKey.fromString(operatorKey));
+  const {
+    Client,
+    AccountId,
+    PrivateKey,
+    TokenCreateTransaction,
+    TokenType,
+    TokenSupplyType,
+    Hbar,
+  } = await import("@hashgraph/sdk");
 
-  console.log("\n🏗   Creating TrustBox Credit HTS NFT Token...\n");
+  // Auto-detect key format to avoid INVALID_SIGNATURE
+  const raw = operatorKey.trim();
+  let privKey: any;
+  if (raw.startsWith("302e") || raw.startsWith("3026") ||
+      raw.startsWith("3030") || raw.startsWith("3077")) {
+    privKey = PrivateKey.fromStringDer(raw);
+  } else if (raw.startsWith("0x")) {
+    privKey = PrivateKey.fromStringECDSA(raw.slice(2));
+  } else if (raw.length === 64) {
+    try { privKey = PrivateKey.fromStringECDSA(raw); }
+    catch { privKey = PrivateKey.fromStringED25519(raw); }
+  } else {
+    privKey = PrivateKey.fromString(raw);
+  }
+  const client  = Client.forTestnet();
+  client.setOperator(AccountId.fromString(operatorId), privKey);
+
+  console.log("═══════════════════════════════════════════════════════");
+  console.log("  TrustBox — Hedera HTS NFT Token Creation");
+  console.log(`  Operator: ${operatorId}`);
+  console.log("═══════════════════════════════════════════════════════\n");
+
+  console.log("📦 Creating HTS NFT collection: TrustBox Credit Credential (TBCC)...");
 
   const tx = await new TokenCreateTransaction()
     .setTokenName("TrustBox Credit Credential")
-    .setTokenSymbol("TBC")
+    .setTokenSymbol("TBCC")
     .setTokenType(TokenType.NonFungibleUnique)
     .setSupplyType(TokenSupplyType.Infinite)
     .setTreasuryAccountId(AccountId.fromString(operatorId))
-    .setSupplyKey(PrivateKey.fromString(operatorKey))
-    .setAdminKey(PrivateKey.fromString(operatorKey))
+    .setAdminKey(privKey.publicKey)   // allows future token updates
+    .setSupplyKey(privKey.publicKey)  // required to mint new serials
+    .setTokenMemo("TrustBox ZK Credit Score NFT — https://trustbox-ai.vercel.app")
+    .setInitialSupply(0)              // NFT collections start at 0
     .setMaxTransactionFee(new Hbar(30))
-    .execute(client);
+    .freezeWith(client)
+    .sign(privKey);
 
-  const receipt = await tx.getReceipt(client);
-  const tokenId = receipt.tokenId!.toString();
+  const response = await tx.execute(client);
+  const receipt  = await response.getReceipt(client);
+  const tokenId  = receipt.tokenId!.toString();
 
-  console.log(`✅  HTS Token created successfully`);
-  console.log(`   Token ID: ${tokenId}`);
-  console.log(`   Type:     NonFungibleUnique (NFT)`);
-  console.log(`   Symbol:   TBC`);
-  console.log(`\n   Add to .env:`);
-  console.log(`   HTS_CREDIT_TOKEN_ID=${tokenId}\n`);
+  console.log(`\n  ✅ HTS NFT Token Created!`);
+  console.log(`  Token ID:     ${tokenId}`);
+  console.log(`  HashScan:     https://hashscan.io/testnet/token/${tokenId}`);
+
+  // ── Write to .env ────────────────────────────────────────────
+  const envPath    = path.resolve(process.cwd(), ".env");
+  let   envContent = fs.existsSync(envPath) ? fs.readFileSync(envPath, "utf-8") : "";
+
+  const regex = /^HTS_CREDIT_TOKEN_ID=.*$/m;
+  if (regex.test(envContent)) {
+    envContent = envContent.replace(regex, `HTS_CREDIT_TOKEN_ID=${tokenId}`);
+  } else {
+    envContent += `\nHTS_CREDIT_TOKEN_ID=${tokenId}`;
+  }
+
+  fs.writeFileSync(envPath, envContent);
+  console.log("  .env updated with HTS_CREDIT_TOKEN_ID\n");
+
+  console.log("═══════════════════════════════════════════════════════");
+  console.log("  ✅ Done! Add this to your Render environment:");
+  console.log(`  HTS_CREDIT_TOKEN_ID=${tokenId}`);
+  console.log("═══════════════════════════════════════════════════════\n");
+
+  console.log("Next steps:");
+  console.log("  1. Add HTS_CREDIT_TOKEN_ID to Render → Environment");
+  console.log("  2. Users need to associate the token before receiving NFTs:");
+  console.log(`     hashscan.io/testnet/token/${tokenId}`);
+  console.log("  3. Test a mint: POST /api/score with a valid wallet + hederaAccountId\n");
+
+  client.close();
 }
 
 main().catch(err => {
-  console.error("Fatal:", err);
+  console.error("❌  Failed:", err.message);
   process.exit(1);
 });
