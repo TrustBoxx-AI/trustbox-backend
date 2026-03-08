@@ -217,6 +217,20 @@ scripts/utils/generateZkArtifacts.ts  # Generate ZK artifacts (Windows-compatibl
 - **JWT auth** — 7-day TTL, wallet-bound, stateless — no session storage
 - **Rate limiting** — all API routes via express-rate-limit
 
+---
+
+## Hackathon Track Alignment
+
+**Avalanche** — 4 contracts deployed on Fuji. TrustRegistry implements the emerging ERC-8004 AI agent credential standard. All transactions verifiable on Snowtrace.
+
+**Hedera** — HCS topics for immutable audit trails. HCS-10 standard compliance with inbox/outbox topics. TBCC HTS NFT for ZK credit credentials. Every action produces a HashScan-verifiable sequence number.
+
+**Chainlink** — Automation integrated in IntentVault for automated execution triggers. Architecture ready for VRF-based agent selection.
+
+**Groq / AI** — Llama 3.1 70B used for contract security analysis (4–6 structured findings with severity + remediation) and NL intent parsing. HITL pattern ensures AI outputs are human-approved before on-chain anchoring.
+
+---
+
 ## License
 
 MIT — Built for the hackathon, March 2026.
@@ -230,10 +244,6 @@ MIT — Built for the hackathon, March 2026.
 
 ## Chainlink Integration
 
-> This section satisfies the hackathon requirement: *README must link to all files that use Chainlink.*
-
-**Replace `YOUR_ORG/trustbox-backend` and `YOUR_ORG/trustbox-frontend` with your actual GitHub repo names before submission.**
-
 ### Backend — files that use Chainlink
 
 | File | Chainlink feature | Link |
@@ -241,7 +251,7 @@ MIT — Built for the hackathon, March 2026.
 | `src/services/chainlink.ts` | **Core integration** — Chainlink Functions (`parseIntent` via DON), Price Feeds (AVAX/USD, ETH/USD, BTC/USD via `latestRoundData()`), SecretsManager for DON-hosted encrypted secrets | [view](https://github.com/trustboxx-ai/trustbox-backend/src/services/chainlink.ts) |
 | `src/api/execute.ts` | Imports `parseIntent` from chainlink.ts — `POST /api/intent/parse` triggers a Chainlink Functions request; `POST /api/intent/submit` registers an Automation upkeep and awaits the `performUpkeep()` callback | [view](https://github.com/trustboxx-ai/trustbox-backend/src/api/execute.ts) |
 | `src/config/env.ts` | Declares all Chainlink env vars — `CHAINLINK_SUBSCRIPTION_ID`, `CHAINLINK_DON_ID`, `CHAINLINK_ROUTER`, `CHAINLINK_LINK_TOKEN`, `CHAINLINK_AUTOMATION_REGISTRY`, `CHAINLINK_UPKEEP_ID`, `CHAINLINK_SECRETS_VERSION` | [view](https://github.com/trustboxx-ai/trustbox-backend/src/config/env.ts) |
-| `src/index.ts` | Exports the `CHAINLINK` config object (router address, DON ID, price feed addresses, subscription ID, upkeep ID) used across services | [view](https://github.com/YOUR_ORG/trustbox-backend/blob/main/src/index.ts) |
+| `src/index.ts` | Exports the `CHAINLINK` config object (router address, DON ID, price feed addresses, subscription ID, upkeep ID) used across services | [view](https://github.com/trustboxx-ai/trustbox-backend/src/index.ts) |
 
 ### Frontend — files that use Chainlink
 
@@ -255,7 +265,7 @@ MIT — Built for the hackathon, March 2026.
 
 | File | Chainlink feature | Link |
 |---|---|---|
-| `contracts/IntentVault.sol` | Implements `AutomationCompatibleInterface` — `checkUpkeep()` polls for pending intents, `performUpkeep()` executes approved intent specs | [view](https://github.com/trustbox-backend/contracts/evm/src/IntentVault.sol) |
+| `contracts/IntentVault.sol` | Implements `AutomationCompatibleInterface` — `checkUpkeep()` polls for pending intents, `performUpkeep()` executes approved intent specs | [view](https://github.com/trustboxx-ai/trustbox-backend/contracts/evm/src/IntentVault.sol) |
 
 ### What each Chainlink product does in TrustBox
 
@@ -267,3 +277,265 @@ After an intent spec is submitted to `IntentVault.sol`, Chainlink Automation mon
 
 **Chainlink Price Feeds** (`chainlink.ts`)
 `getAvaxUsdPrice()`, `getEthUsdPrice()`, and `getBtcUsdPrice()` read from Fuji Price Feed contracts via `latestRoundData()`. Answers are validated for staleness (>1 hour) and zero/negative values before use.
+
+---
+
+## Chainlink Runtime Environment (CRE) & Tenderly Virtual TestNet
+### Tenderly Virtual TestNet — Explorer Link
+
+TrustBox smart contracts are deployed and verified on a Tenderly Virtual TestNet forked from Avalanche Fuji. The Virtual TestNet provides a full transaction history for every CRE workflow execution.
+
+**🔗 Tenderly Virtual TestNet Explorer:**
+```
+(https://dashboard.tenderly.co/davife2025/project/testnet/ab1adedd-dc7f-4773-b54d-aba302add10d)
+```
+
+> **To generate your Tenderly explorer link:**
+> 1. Log in at https://dashboard.tenderly.co
+> 2. Create a new Virtual TestNet → Fork → Avalanche Fuji (chainId: 43113)
+> 3. Deploy contracts using `npm run deploy:tenderly` (see below)
+> 4. Your explorer URL will be: `https://dashboard.tenderly.co/<username>/<project>/testnet/<vnet-id>`
+> 5. Replace the placeholder above with your real URL before submission
+
+**What the Tenderly explorer shows:**
+- All four TrustRegistry, AuditRegistry, AgentMarketplace, IntentVault contract deployments
+- Every `submitAudit()`, `mintCredential()`, `submitIntent()`, `registerAgent()` call
+- Chainlink Automation `performUpkeep()` execution on IntentVault
+- Internal transactions from Chainlink Functions fulfillment callbacks
+- Full decoded event logs: `IntentParsed`, `IntentSubmitted`, `IntentExecuted`, `AgentRegistered`, `CredentialMinted`
+
+---
+
+### Deploying to Tenderly Virtual TestNet
+
+```bash
+# 1. Install Tenderly CLI
+npm install -g @tenderly/cli
+
+# 2. Log in
+tenderly login
+
+# 3. Create Virtual TestNet (fork Fuji)
+tenderly virtual-testnet create \
+  --project trustbox-ai \
+  --network 43113 \
+  --block-number latest \
+  --name "TrustBox CRE Demo"
+
+# 4. Export the RPC URL and chain ID from Tenderly dashboard
+# Then add to .env:
+TENDERLY_RPC_URL=https://virtual.avalanche.rpc.tenderly.co/YOUR_VNET_ID
+TENDERLY_CHAIN_ID=43113
+
+# 5. Deploy all contracts to the Virtual TestNet
+npx hardhat run scripts/deploy/deployAll.ts --network tenderly
+```
+
+Add to `hardhat.config.ts`:
+```typescript
+networks: {
+  tenderly: {
+    url:     process.env.TENDERLY_RPC_URL!,
+    chainId: 43113,
+    accounts: [process.env.DEPLOYER_PRIVATE_KEY!],
+  },
+}
+```
+
+---
+
+### CRE Workflow — Source Files
+
+The Chainlink Runtime Environment (CRE) orchestrates TrustBox's intent execution workflow. All CRE source files are in the repository root:
+
+| File | Purpose | Link |
+|---|---|---|
+| [`workflow.yaml`](https://github.com/trustbox-ai/trustbox-backend/trustboxx-ai/workflow.yaml) | CRE workflow definition — names the workflow `trustboxx-ai`, points to `main.ts` entry point and `config.json` | [view](https://github.com/trustbox-ai/trustbox-backend/trustboxx-ai/workflow.yaml) |
+| [`project.yaml`](https://github.com/trustbox-ai/trustbox-backend/trust-boxx-ai/my-workflow/project.yaml) | CRE project settings — defines staging and production RPC targets (Sepolia + Avalanche Fuji) | [view](https://github.com/YOUR_ORG/trustbox-backend/trustboxx-ai/my-workflow/project.yaml) |
+| [`config.json`](https://github.com/trustbox-ai/trustbox-backend/trustboxx-ai/my-workflow/config.json) | CRE runtime config — chain selector `avalanche-testnet-fuji`, gas limit 500,000, all contract addresses, Hedera topic ID, trust score thresholds | [view](https://github.com/YOUR_ORG/trustbox-backend/trustboxx-ai/my-workflow/config.json) |
+| [`secrets.yaml`](https://github.com/trustbox-ai/trustbox-backend/trustboxx-ai/my-workflow/secrets.yaml) | CRE secrets manifest — maps secret names to DON-encrypted values | [view](https://github.com/YOUR_ORG/trustbox-backend/trustboxx-ai/my-workflow/secrets.yaml) |
+| [`_env`](https://github.com/YOUR_ORG/trustbox-backend/_env) | CRE environment template — `CRE_ETH_PRIVATE_KEY` and `CRE_TARGET` (staging or production) | [view](https://github.com/YOUR_ORG/trustbox-backend/_env) |
+| [`src/services/chainlink.ts`](https://github.com/trustbox-ai/trustbox-backend/src/services/chainlink.ts) | CRE execution layer — Chainlink Functions `parseIntent()`, DON-hosted secrets via `SecretsManager`, Price Feed reads | [view](https://github.com/trustbox-ai/trustbox-backend/src/services/chainlink.ts) |
+| [`src/api/execute.ts`](https://github.com/trustbox-ai/trustbox-backend/src/api/execute.ts) | Intent workflow API — calls `parseIntent` (Functions), writes to `IntentVault.sol`, awaits Automation `performUpkeep()` callback | [view](https://github.com/trustbox-ai/trustbox-backend/src/api/execute.ts) |
+| [`src/config/chains.ts`](https://github.com/YOUR_ORG/trustbox-backend/blob/main/src/config/chains.ts) | Chainlink addresses — Functions router `0xA9d587a...`, Automation registry `0x819B58A...`, AVAX/USD, ETH/USD, BTC/USD price feed addresses | [view](https://github.com/trustbox-ai/trustbox-backend/src/config/chains.ts) |
+
+---
+
+### CRE Workflow — How It Works
+
+The TrustBox CRE workflow (`trustboxx-ai`) handles the **Execute Intent** pipeline: taking a user's natural language instruction all the way to a verified on-chain execution, with Chainlink orchestrating every step.
+
+```
+User types NL intent
+        │
+        ▼
+POST /api/intent/parse
+        │
+        ▼
+chainlink.ts → SecretsManager.buildDONHostedEncryptedSecretsReference()
+        │          Encrypts Groq API key reference for DON
+        ▼
+FunctionsConsumer.sendParseRequest()
+        │          Sends parseIntent.js source + args to Chainlink DON
+        ▼
+DON executes parseIntent.js
+        │          Calls Groq Llama 3.1 70B → returns structured JSON spec
+        ▼
+FunctionsConsumer.fulfillRequest() callback
+        │          Fires IntentParsed(requestId, specJson) event
+        ▼
+Backend receives specJson → computes specHash
+        │
+        ▼
+Frontend displays spec for user review
+        │
+        ▼
+User signs specHash via MetaMask (not raw NL text)
+        │
+        ▼
+POST /api/intent/submit
+        │
+        ▼
+IntentVault.submitIntent(nlHash, specHash, category, userSig)
+        │          Writes intent on Avalanche Fuji / Tenderly VNet
+        ▼
+IntentVault.approveIntent(intentId)
+        │
+        ▼
+Chainlink Automation polls checkUpkeep()
+        │          Detects APPROVED intent
+        ▼
+Automation calls performUpkeep()
+        │          IntentExecuted(intentId, executionHash) event fires
+        ▼
+Backend receives event → pins record to IPFS → writes HCS trail to Hedera
+        │
+        ▼
+Response: avaxTxHash + executionHash + hcsSeqNum + recordCID
+```
+
+---
+
+### CRE Configuration
+
+**`workflow.yaml`** — defines the workflow name and artifact paths used by `cre-cli deploy`:
+```yaml
+staging-settings:
+  user-workflow:
+    workflow-name: "trustboxx-ai"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path:   "./config.json"
+    secrets-path:  ""
+
+production-settings:
+  user-workflow:
+    workflow-name: "trustboxx-ai"
+  workflow-artifacts:
+    workflow-path: "./main.ts"
+    config-path:   "./config.json"
+    secrets-path:  "./secrets.yaml"
+```
+
+**`config.json`** — runtime parameters read by the CRE workflow at execution time:
+```json
+{
+  "chainSelectorName": "avalanche-testnet-fuji",
+  "gasLimit": 500000,
+  "contracts": {
+    "trustRegistry":    "0x8A24ea199EAAbc8AAcb7cb92660FD20a2BA2552A",
+    "auditRegistry":    "0x62e2Ba19a38AcA58B829aEC3ED8Db9bfd89D5Fd3",
+    "intentVault":      "0xB9aE50f6989574504e6CA465283BaD9570944B67",
+    "agentMarketplace": "0x12d7ef9627d0F4c6C6e0EB85A4D6388cee5d91c2"
+  },
+  "schedules": {
+    "creditScoreRefresh": "0 */6 * * *",
+    "agentTrustRefresh":  "0 */2 * * *"
+  }
+}
+```
+
+**`project.yaml`** — RPC endpoints for each CRE target environment:
+```yaml
+staging-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+
+production-settings:
+  rpcs:
+    - chain-name: ethereum-testnet-sepolia
+      url: https://ethereum-sepolia-rpc.publicnode.com
+    - chain-name: ethereum-mainnet
+      url: https://ethereum-rpc.publicnode.com
+```
+
+---
+
+### Running the CRE Workflow Locally
+
+```bash
+# 1. Install CRE CLI
+npm install -g @chainlink/cre-cli
+# or with bun:
+bun install
+
+# 2. Set environment
+cp _env .env
+# Fill in: CRE_ETH_PRIVATE_KEY, CRE_TARGET=staging-settings
+
+# 3. Simulate workflow locally against Tenderly Virtual TestNet
+cre-cli workflow simulate \
+  --workflow-path ./main.ts \
+  --config-path ./config.json \
+  --target staging-settings
+
+# 4. Deploy to DON (requires CHAINLINK_SUBSCRIPTION_ID)
+cre-cli workflow deploy \
+  --config workflow.yaml \
+  --target staging-settings
+```
+
+---
+
+### How CRE + Tenderly Virtual TestNets Solve the Problem
+
+**The problem:** Testing AI agent workflows that write on-chain is expensive and slow on public testnets. Gas prices spike, faucets run dry, and a single failed test wastes real AVAX. More critically, Chainlink Automation callbacks are non-deterministic on live testnets — you cannot control exactly when `performUpkeep()` fires, making it impossible to write reliable integration tests.
+
+**How CRE solves it:** The Chainlink Runtime Environment provides a DON-level execution layer that decouples the AI computation (Groq via Functions) from the on-chain write (IntentVault). The DON runs `parseIntent.js` in a deterministic, trust-minimised environment — multiple nodes must agree on the response before it reaches the chain. This means the specJson the user sees and signs is the same one that gets written on-chain, with no possibility of substitution.
+
+**How Tenderly Virtual TestNets solve it:** Virtual TestNets provide a fully forked Avalanche Fuji environment where:
+- Contract deployments are instant (no block wait)
+- Gas is unlimited for testing — no faucet needed
+- Every transaction is captured and decoded in the Tenderly explorer
+- State can be reset between test runs
+- Chainlink Automation can be simulated by calling `performUpkeep()` directly
+- Price feed contracts are forked live, so `latestRoundData()` returns real Fuji prices
+
+Together, CRE + Tenderly Virtual TestNets allow the full TrustBox intent workflow — from NL input through DON consensus through IntentVault to Automation execution — to be tested end-to-end in a controlled environment before deploying to public Fuji.
+
+---
+
+### CRE Workflow Environment Variables
+
+Add to `.env` (copy from `_env`):
+
+```env
+# CRE required
+CRE_ETH_PRIVATE_KEY=0x...         # Wallet that owns the CRE workflow
+CRE_TARGET=staging-settings       # Target from project.yaml
+
+# Chainlink Functions (CRE)
+CHAINLINK_SUBSCRIPTION_ID=123
+CHAINLINK_DON_ID=fun-avalanche-fuji-1
+CHAINLINK_ROUTER=0xA9d587a00A31A52Ed70D6026794a8FC5E2F5dCb0
+CHAINLINK_LINK_TOKEN=0x0b9d5D9136855f6FEc3c0993feE6E9CE8a297846
+CHAINLINK_SECRETS_VERSION=1
+
+# Chainlink Automation
+CHAINLINK_AUTOMATION_REGISTRY=0x819B58A646CDd8289275A87653a2aA4902b14fe6
+CHAINLINK_UPKEEP_ID=your-upkeep-id
+
+# Tenderly Virtual TestNet (for local testing)
+TENDERLY_RPC_URL=https://virtual.avalanche.rpc.tenderly.co/YOUR_VNET_ID
+```
