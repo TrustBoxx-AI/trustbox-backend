@@ -1,13 +1,4 @@
-/* api/agents.ts — TrustBox
-   GET  /api/agents          — list all agents (on-chain + seed fallback)
-   POST /api/agents/hire     — verify agent is live and return connection info
-   POST /api/agents/register — register a new agent on-chain
 
-   Contract: AgentMarketplace.sol
-   ─ registerAgent(agentId, teeEndpoint, encPubKey) payable
-   ─ getAgent(agentId, operator) → Agent
-   ─ getOperatorAgents(operator) → bytes32[]
-   ─────────────────────────────────────────────────────────── */
 
 import { Router, Request, Response } from "express";
 import { ethers }                     from "ethers";
