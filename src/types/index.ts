@@ -1,8 +1,4 @@
-/* src/types/index.ts — TrustBox
-   Shared TypeScript types across the backend.
-   ─────────────────────────────────────────── */
 
-// ── Agent ─────────────────────────────────────────────────────
 export interface Agent {
   id:            string
   name:          string
