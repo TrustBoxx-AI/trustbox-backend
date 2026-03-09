@@ -1,14 +1,4 @@
-/**
- * scripts/utils/encryptSecrets.ts
- * ────────────────────────────────
- * Encrypts GROQ_API_KEY for Chainlink DON-hosted secrets.
- * Run this once before using Chainlink Functions.
- *
- * Run:
- *   ts-node scripts/utils/encryptSecrets.ts
- *
- * Output: CHAINLINK_SECRETS_VERSION added to .env
- */
+
 
 
 import { webcrypto } from "crypto"
