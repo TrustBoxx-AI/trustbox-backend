@@ -1,6 +1,4 @@
-/* server.ts — TrustBox Backend
-   HTTP server entry point.
-   ─────────────────────────────────────────────────────── */
+
 
 import app from "./app";
 import { env } from "./config/env";
