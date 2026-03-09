@@ -1,27 +1,4 @@
-/* api/chat.ts — TrustBox
-   POST /api/agent/chat        — NL chat with TrustBox Orchestrator
-   GET  /api/agent/identity    — agent metadata (HOL Registry discoverable)
-   GET  /api/agent/inbox       — latest HCS-10 inbox messages
-   GET  /api/agent/outbox      — latest HCS-10 outbox messages
-   ─────────────────────────────────────────────────────────────────────
-   HOL Registry: TrustBox Orchestrator is registered in the HOL
-   Registry Broker via HCS-10. Any agent or user that discovers
-   TrustBox can POST natural language to /api/agent/chat and the
-   orchestrator routes to the appropriate primitive:
 
-     "audit 0x62e2Ba19..."  → smart contract audit
-     "verify my agent"      → ERC-8004 credential mint
-     "check my credit"      → ZK credit score
-     "hire an audit agent"  → AgentMarketplace hire
-     "list agents"          → marketplace directory
-     "book me a flight..."  → Chainlink intent engine
-     "help"                 → capability list
-
-   A2A (Agent-to-Agent):
-     Other agents can include reply_topic in the request body.
-     TrustBox mirrors every response to its HCS-10 outbox topic
-     and also writes a response back to the caller's reply_topic.
-   ─────────────────────────────────────────────────────────────── */
 
 import { Router, Request, Response } from "express";
 import { apiLimiter }    from "../middleware/rateLimit";
