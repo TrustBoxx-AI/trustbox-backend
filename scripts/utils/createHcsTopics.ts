@@ -1,7 +1,3 @@
-/* scripts/utils/createHcsTopics.ts — TrustBox
-   Creates all 4 HCS topics needed for TrustBox.
-   Run once: npx ts-node scripts/utils/createHcsTopics.ts
-   ───────────────────────────────────────────────────── */
 
 import * as dotenv from "dotenv";
 dotenv.config();
