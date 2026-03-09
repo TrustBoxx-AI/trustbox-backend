@@ -1,18 +1,4 @@
-/* api/audit.ts — TrustBox
-   Two-phase HITL audit flow:
-   ─────────────────────────────────────────────────────────────
-   Phase 1 — POST /api/audit/prepare
-     • Calls Groq (Llama 3.1 70B) to analyse the contract
-     • Returns structured findings + score for human review
-     • Does NOT anchor anything on-chain yet
 
-   Phase 2 — POST /api/audit
-     • Receives auditor-signed reportHash (proves HITL review)
-     • Computes Merkle tree of findings
-     • Pins report to IPFS
-     • Calls AuditRegistry.submitAudit() on Avalanche Fuji
-     • Writes audit trail to Hedera HCS
-   ──────────────────────────────────────────────────────────── */
 
 import { Router, Request, Response } from "express";
 import { ethers }              from "ethers";
