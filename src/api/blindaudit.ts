@@ -1,6 +1,4 @@
-/* api/blindaudit.ts — TrustBox (FIXED)
-   POST /api/blindaudit — Phala TEE blind code audit
-   ─────────────────────────────────────────────────── */
+
 
 import { Router, Request, Response } from "express"
 import { ethers }                    from "ethers"
