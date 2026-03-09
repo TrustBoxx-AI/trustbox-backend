@@ -1,13 +1,4 @@
-/* api/verify.ts — TrustBox
-   POST /api/verify/prepare  — compute hashes + pin metadata (no mint yet)
-   POST /api/verify/mint     — human approved + signed → mint ERC-8004
-   ─────────────────────────────────────────────────────────────────────
-   Human-in-the-loop flow:
-     1. Frontend calls /prepare → backend returns agentId, modelHash, CID
-     2. Frontend shows summary card → user clicks "Approve & Sign"
-     3. MetaMask signs approval message client-side
-     4. Frontend calls /mint with signature → backend mints credential
-   ──────────────────────────────────────────────────────────────────── */
+
 
 import { Router, Request, Response } from "express";
 import { ethers }             from "ethers";
