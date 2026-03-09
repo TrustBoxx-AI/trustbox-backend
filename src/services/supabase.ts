@@ -1,7 +1,4 @@
-/* services/supabase.ts — TrustBox Backend
-   All Supabase DB operations.
-   Uses service role key — full access, bypasses RLS.
-   ─────────────────────────────────────────────────── */
+
 
 import { createClient } from "@supabase/supabase-js"
 import { env }          from "../config/env"
