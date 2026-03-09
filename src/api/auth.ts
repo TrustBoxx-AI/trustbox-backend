@@ -1,9 +1,4 @@
-/* api/auth.ts — TrustBox
-   POST /api/auth/login    — EIP-191 wallet signature → JWT
-   GET  /api/auth/me       — return user + dashboard summary
-   POST /api/auth/logout   — client-side only (stateless JWT)
-   POST /api/auth/refresh  — re-issue JWT before expiry
-   ─────────────────────────────────────────────────────── */
+
 
 import { Router, Request, Response } from "express"
 import { ethers }                     from "ethers"
