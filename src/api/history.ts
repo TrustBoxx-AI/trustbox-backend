@@ -1,18 +1,3 @@
-/* api/history.ts — TrustBox
-   GET  /api/history/dashboard              — full dashboard summary
-   GET  /api/history/scores                 — credit score history
-   GET  /api/history/audits                 — audit history
-   GET  /api/history/intents                — intent history
-   GET  /api/history/agents                 — agent NFTs
-   GET  /api/history/notifications          — notifications
-   POST /api/history/notifications/read     — mark all read
-   ── Write endpoints called by frontend after each action ──────
-   POST /api/history/scores                 — record score result
-   POST /api/history/audits                 — record audit result
-   POST /api/history/blindaudits            — record blind audit
-   POST /api/history/agents                 — record agent NFT mint
-   POST /api/history/intents                — record intent execution
-   ──────────────────────────────────────────────────────────── */
 
 import { Router, Request, Response } from "express"
 import { requireAuth }               from "../middleware/auth"
