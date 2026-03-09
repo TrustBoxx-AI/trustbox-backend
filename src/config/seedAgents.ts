@@ -1,7 +1,4 @@
-/* config/seedAgents.ts — TrustBox
-   Seed agents shown when AgentMarketplace contract is unavailable.
-   Fields match the Agent interface in Marketplace.tsx.
-*/
+
 
 export const SEED_AGENTS = [
   {
