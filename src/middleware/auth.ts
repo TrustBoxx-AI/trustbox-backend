@@ -1,12 +1,3 @@
-/* middleware/auth.ts — TrustBox
-   requireWalletSig — verifies EIP-191 signature on request body
-   requireAuth      — verifies JWT from Authorization header
-   optionalAuth     — attaches wallet if token present, continues if not
-
-   NOTE: apiLimiter and walletRateLimit are defined solely in
-   middleware/rateLimit.ts. They are NOT exported from here to
-   avoid the duplicate-export shadowing bug (H-01).
-   ────────────────────────────────────────────────────────────── */
 
 import { Request, Response, NextFunction } from "express"
 import { ethers }                          from "ethers"
