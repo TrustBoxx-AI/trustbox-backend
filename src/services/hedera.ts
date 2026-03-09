@@ -1,7 +1,4 @@
-/* services/hedera.ts — TrustBox
-   Hedera SDK — HCS topic submissions + HTS NFT minting.
-   Lazy-loaded to avoid @hashgraph/sdk native binding crash on Render startup.
-   ─────────────────────────────────────────────────────────────────────── */
+
 
 import { HEDERA_CONFIG } from "../config/chains";
 
