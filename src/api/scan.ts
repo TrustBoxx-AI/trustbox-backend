@@ -1,6 +1,4 @@
-/* api/scan.ts — TrustBox
-   POST /api/scan — Behavioural analysis (no chain interaction v1)
-   ─────────────────────────────────────────────────────────────── */
+
 
 import { Router, Request, Response } from "express";
 import { ethers }            from "ethers";
