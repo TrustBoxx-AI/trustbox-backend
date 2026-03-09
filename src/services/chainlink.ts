@@ -1,9 +1,4 @@
-/* services/chainlink.ts — TrustBox
-   Intent parsing via Groq (Llama 3.1 70B) — direct API call.
-   Previously used Chainlink Functions on-chain; replaced with
-   Groq for hackathon demo (no subscription/DON setup needed).
-   The parseIntent() signature is unchanged — execute.ts works as-is.
-   ─────────────────────────────────────────────────────────────── */
+
 
 import { ethers } from "ethers"
 import { env }    from "../config/env"
