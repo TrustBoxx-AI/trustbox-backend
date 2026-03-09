@@ -1,30 +1,4 @@
-/**
- * scripts/deploy/cre-simulate.ts — TrustBox
- * ─────────────────────────────────────────────────────────────
- * Simulates all 4 CRE workflows against Tenderly Virtual TestNets.
- *
- * This script:
- *   1. Submits a test intent to IntentVault.sol on the VTN
- *      → triggers Workflow 1 (EVM log trigger)
- *   2. Calls /api/score/pending via the VTN state
- *      → triggers Workflow 2 (credit score cron)
- *   3. Calls /api/tee/probe-and-update for a registered agent
- *      → triggers Workflow 3 (agent trust score cron)
- *   4. Reads live Chainlink price feeds from both VTNs
- *      → triggers Workflow 4 (cross-chain price verification)
- *
- * After each simulation, prints a Tenderly Explorer link showing:
- *   - The full transaction trace
- *   - All state changes (storage diffs)
- *   - All events emitted
- *   - Any reverts with decoded error messages
- *
- * Run:
- *   npx hardhat run scripts/deploy/cre-simulate.ts --network tenderly-avax
- *
- * Output:
- *   simulation-results.json  ← Tenderly explorer links for submission
- */
+
 
 import * as hre  from "hardhat"
 import * as fs   from "fs"
