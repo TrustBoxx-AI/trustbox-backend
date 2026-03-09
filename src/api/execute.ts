@@ -1,8 +1,4 @@
-/* api/execute.ts — TrustBox
-   POST /api/intent/parse  — NL → structured spec (Chainlink Functions)
-   POST /api/intent/submit — spec + sig → IntentVault + Automation + HCS
-   GET  /api/intent/:id    — poll execution status
-   ─────────────────────────────────────────────────────────────────── */
+
 
 import { Router, Request, Response } from "express";
 import { ethers }               from "ethers";
