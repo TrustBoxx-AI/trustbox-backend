@@ -5,14 +5,9 @@ import jwt                                 from "jsonwebtoken"
 import { env }                             from "../config/env"
 import { validateSession }                 from "../services/supabase"
 
-// ── EIP-191 wallet signature verification ─────────────────────
-// IMPORTANT: this middleware must be placed BEFORE validate(Schema)
-// in the middleware chain so it hashes the original raw body, not
-// the Zod-coerced version. (Fixes H-02 / H-03 / H-04)
+
 export function requireWalletSig(req: Request, res: Response, next: NextFunction) {
-  // ── Dev/testnet bypass ─────────────────────────────────────
-  // Set NODE_ENV=development in Render environment to enable.
-  // Attaches walletAddress from body so downstream handlers work.
+ 
   if (process.env.NODE_ENV === "development") {
     ;(req as any).walletAddress = (req.body?.walletAddress ?? "").toLowerCase()
     return next()
