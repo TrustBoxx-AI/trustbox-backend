@@ -1,17 +1,3 @@
-/**
- * scripts/deploy/deploy-functions.ts
- * ────────────────────────────────────
- * Deploys FunctionsConsumer.sol to Avalanche Fuji.
- *
- * Prerequisites:
- *   1. CHAINLINK_SUBSCRIPTION_ID set in .env
- *      → Create at: https://functions.chain.link
- *   2. Subscription funded with LINK
- *      → Fuji LINK faucet: https://faucets.chain.link/fuji
- *
- * Run:
- *   npx hardhat run scripts/deploy/deploy-functions.ts --network fuji
- */
 
 import * as hre from "hardhat"
 import * as fs  from "fs"
