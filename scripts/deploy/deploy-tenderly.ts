@@ -1,32 +1,3 @@
-/**
- * scripts/deploy/deploy-tenderly.ts — TrustBox
- * ─────────────────────────────────────────────────────────────
- * Deploys all TrustBox contracts to a Tenderly Virtual TestNet
- * forked from Avalanche C-Chain mainnet.
- *
- * Why Tenderly VTN instead of Fuji:
- *   • Forked from mainnet → real Chainlink price feed state
- *   • Unlimited faucet → no waiting for testnet tokens
- *   • Built-in tx debugger → full trace on every CRE workflow call
- *   • Public explorer link → required for hackathon submission
- *   • Customisable state → can set any balance, storage, code
- *
- * Prerequisites:
- *   1. Create a Virtual TestNet at https://dashboard.tenderly.co/virtual-testnets
- *      Fork: Avalanche C-Chain (mainnet, chain ID 43114)
- *   2. Copy Admin RPC URL   → TENDERLY_ADMIN_RPC in .env
- *   3. Copy Public RPC URL  → TENDERLY_AVAX_RPC in .env
- *   4. Copy Explorer URL    → TENDERLY_EXPLORER_URL in .env
- *   5. Fund deployer via VTN unlimited faucet (set_balance)
- *
- * Run:
- *   npx hardhat run scripts/deploy/deploy-tenderly.ts --network tenderly-avax
- *
- * Output:
- *   deployments/tenderly-avax.json  ← contract addresses
- *   .env updated with all *_TENDERLY_ADDR vars
- *   Console prints the Tenderly Explorer link for each contract
- */
 
 import * as hre  from "hardhat"
 import * as fs   from "fs"
