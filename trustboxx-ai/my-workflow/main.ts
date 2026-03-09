@@ -1,10 +1,4 @@
-/**
- * TrustBox AI — CRE Workflow (Custom Data Feed TS)
- * ================================================
- * Workflow 1: Intent Execution  — EVM log trigger
- * Workflow 2: Credit Score      — cron trigger (every 6h)
- * Workflow 3: Agent Trust Score — cron trigger (every 2h)
- */
+
 
 import {
   EVMClient,
@@ -29,9 +23,6 @@ const FUJI            = EVMClient.SUPPORTED_CHAIN_SELECTORS['avalanche-testnet-f
 const evmClient       = new EVMClient(FUJI)
 const httpClient      = new HTTPClient()
 
-// Note: Tenderly VTN price feed reads happen server-side in price.ts (Express).
-// EVMClient only supports CRE SUPPORTED_CHAIN_SELECTORS — custom VTN chain IDs
-// are not in that list and cause WASM to crash at subscribe time if instantiated here.
 
 // ─── Types ────────────────────────────────────────────────────
 interface IntentSpec {
@@ -263,20 +254,7 @@ const refreshAgentScoresHandler = handler(
 // ═══════════════════════════════════════════════════════════════
 // Workflow 4: Cross-Chain Price Feed Verification (Cron every 15min)
 // ═══════════════════════════════════════════════════════════════
-// Runs on Tenderly Virtual TestNets forked from real mainnet.
-//
-// Reads ETH/USD from two independent Chainlink feeds:
-//   Source A: Avalanche mainnet fork (VTN-AVAX) — feed 0x976B3D...
-//   Source B: Ethereum mainnet fork  (VTN-ETH)  — feed 0x5f4eC3...
-//
-// If deviation < 0.5% → writes a "VERIFIED" composite price on-chain
-// If deviation ≥ 0.5% → raises a price anomaly alert (writes alert payload)
-//
-// This demonstrates:
-//   • CRE orchestrating across two independent Tenderly VTNs
-//   • Real mainnet Chainlink price feed data (not fake testnet data)
-//   • Cross-chain verification before writing a custom data feed on-chain
-//   • Tenderly tx debugger shows full trace of both feed reads + write
+
 const verifyPriceFeedsHandler = handler(
   new CronCapability().trigger({ schedule: '*/15 * * * *' }),
   (runtime: Runtime<TrustBoxConfig>, _cron: CronPayload): PriceFeedResult => {
