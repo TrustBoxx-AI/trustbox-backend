@@ -1,23 +1,3 @@
-/**
- * scripts/utils/addAuditor.ts — TrustBox
- * ─────────────────────────────────────────────────────────────
- * Registers the backend deployer wallet as an authorised auditor
- * on AuditRegistry.sol.
- *
- * WHY THIS IS REQUIRED:
- *   AuditRegistry.submitAudit() recovers the signer from the
- *   auditorSig and checks authorisedAuditors[signer] == true.
- *   Without this step every /api/audit call reverts with
- *   "AuditRegistry: unauthorised auditor".
- *
- * Run ONCE after deploying AuditRegistry.sol:
- *   ts-node scripts/utils/addAuditor.ts
- *
- * Prerequisites in .env:
- *   DEPLOYER_PRIVATE_KEY=0x...
- *   AUDIT_REGISTRY_ADDR=0x...
- *   AVALANCHE_FUJI_RPC=https://api.avax-test.network/ext/bc/C/rpc
- */
 
 import * as dotenv from "dotenv";
 dotenv.config();
