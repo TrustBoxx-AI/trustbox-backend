@@ -1,10 +1,4 @@
-/* scripts/utils/registerHOLAgent.ts — TrustBox
-   Registers TrustBox as an HCS-10 agent via the HOL Registry Broker API.
-   Uses RegistryBrokerClient from @hashgraphonline/standards-sdk (correct approach).
-   Direct HCS topic writes are rejected — the registry is guarded.
 
-   Run: npx ts-node scripts/utils/registerHOLAgent.ts
-   ──────────────────────────────────────────────────────────── */
 
 import * as dotenv from "dotenv";
 dotenv.config();
