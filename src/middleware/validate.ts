@@ -1,6 +1,4 @@
-/* middleware/validate.ts — TrustBox
-   Zod request body validators.
-   ─────────────────────────────────────────────── */
+
 
 import { Request, Response, NextFunction } from "express";
 import { z, ZodSchema } from "zod";
