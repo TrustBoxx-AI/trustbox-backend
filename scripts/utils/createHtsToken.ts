@@ -1,30 +1,3 @@
-/**
- * scripts/utils/createHtsToken.ts — TrustBox
- * ─────────────────────────────────────────────
- * Creates the HTS NFT collection for TrustBox credit credentials.
- * Run ONCE after portal.hedera.com account setup.
- *
- *   ts-node scripts/utils/createHtsToken.ts
- *
- * Prerequisites in .env:
- *   HEDERA_OPERATOR_ID=0.0.xxxxxx
- *   HEDERA_OPERATOR_KEY=302e020100300506032b657004220420...
- *
- * What it creates:
- *   - HTS Non-Fungible Token (NFT) collection
- *     name:        "TrustBox Credit Credential"
- *     symbol:      "TBCC"
- *     maxSupply:   unlimited (for testnet)
- *     treasury:    operator account
- *     adminKey:    operator key  (allows future updates)
- *     supplyKey:   operator key  (required to mint serials)
- *     kycKey:      none          (no KYC requirement)
- *     freezeKey:   none
- *
- * After running:
- *   - HTS_CREDIT_TOKEN_ID is written to .env automatically
- *   - Verify on HashScan: https://hashscan.io/testnet/token/<id>
- */
 
 import * as dotenv from "dotenv";
 import * as fs     from "fs";
