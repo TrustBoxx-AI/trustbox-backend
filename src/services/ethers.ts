@@ -1,7 +1,4 @@
-/* services/ethers.ts — TrustBox
-   Shared ethers.js v6 provider, signer, and contract instances.
-   All on-chain reads/writes go through this module.
-   ─────────────────────────────────────────────────────────── */
+
 
 import { ethers } from "ethers";
 import { env }     from "../config/env";
